@@ -1,6 +1,6 @@
-<img align="right" width="120" src="assets/icons/AppIcon.png" alt="SteadyHeartBeat app icon">
-
 # SteadyHeartBeat
+
+<img align="right" width="120" src="assets/icons/AppIcon.png" alt="SteadyHeartBeat app icon">
 
 iOS app that reads heart rate from AirPods with heart rate monitoring via HealthKit and announces it aloud — no watch, no chest strap, eyes and hands free.
 
