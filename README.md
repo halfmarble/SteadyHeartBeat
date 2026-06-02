@@ -1,3 +1,5 @@
+<img align="right" width="120" src="app_store/screenshots/AppIcon.png" alt="SteadyHeartBeat app icon">
+
 # SteadyHeartBeat
 
 iOS app that reads heart rate from AirPods with heart rate monitoring via HealthKit and announces it aloud — no watch, no chest strap, eyes and hands free.
@@ -20,6 +22,24 @@ Built by [halfmarble LLC](https://halfmarble.com) as a proof of concept for ambi
 - **Post-workout summary** — max HR, average HR (time-weighted), duration, calories, effort score (avg/maxHR × 100), zone time distribution, and a 1-BPM resolution HR histogram colored by zone.
 - **Session history** — every completed session is saved as JSON to the app's Documents directory. Tap the clock icon in the app bar to browse past sessions with mini histograms.
 - **Screen wakelock** — screen stays on during monitoring, returns to normal auto-lock when stopped.
+
+---
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="33%"><img src="app_store/screenshots/IMG_8601.PNG" alt="Home screen with pre-workout readiness snapshot and workout selector"><br><sub>Pre-workout readiness — resting HRV, resting HR, VO₂ max — then pick a workout type</sub></td>
+    <td align="center" width="33%"><img src="app_store/screenshots/IMG_8604.PNG" alt="Zone coaching with a target zone selected"><br><sub>Set a target zone and hear "push" / "ease off" coaching as you train</sub></td>
+    <td align="center" width="33%"><img src="app_store/screenshots/IMG_8597.PNG" alt="Voice picker showing installed premium voices"><br><sub>Automatically prefers your best installed voice — or pick one explicitly</sub></td>
+  </tr>
+</table>
+
+The full-session HR chart, colored by training zone (green recovery → red maximum effort), turn the phone landscape:
+
+<p align="center">
+  <img width="760" src="app_store/screenshots/IMG_8600.PNG" alt="Landscape live heart-rate chart with 5-zone color gradient">
+</p>
 
 ---
 
