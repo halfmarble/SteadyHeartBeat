@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- App Store Connect / TestFlight export. Use once an Apple Distribution
+	     certificate exists in the keychain:
+	       flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
+	     then upload the .ipa with Transporter.app or:
+	       xcrun altool --upload-app -t ios -f build/ios/ipa/*.ipa \
+	         -u <apple-id> -p <app-specific-password>
+	-->
+	<key>method</key>
+	<string>app-store-connect</string>
+	<key>teamID</key>
+	<string>7E2ASB5KV6</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<key>uploadSymbols</key>
+	<true/>
+	<key>destination</key>
+	<string>export</string>
+</dict>
+</plist>

@@ -1,0 +1,33 @@
+{
+  "title": "SteadyHeartBeat",
+  "description": "iOS app that reads heart rate from AirPods (with heart rate monitoring) via Apple HealthKit and announces it aloud — eyes and hands free. All processing is on-device.",
+  "upload_type": "software",
+  "creators": [
+    { "name": "ziemski, gerard", "affiliation": "halfmarble LLC" }
+  ],
+  "license": "Apache-2.0",
+  "keywords": [
+    "heart rate",
+    "AirPods",
+    "HealthKit",
+    "on-device",
+    "wearable",
+    "Flutter",
+    "iOS"
+  ],
+  "communities": [
+    { "identifier": "halfmarble" }
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "10.5281/zenodo.20510077",
+      "relation": "references",
+      "scheme": "doi"
+    },
+    {
+      "identifier": "10.5281/zenodo.20510165",
+      "relation": "references",
+      "scheme": "doi"
+    }
+  ]
+}

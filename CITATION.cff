@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: SteadyHeartBeat
+abstract: >-
+  iOS app that reads heart rate from AirPods (with heart rate monitoring) via
+  Apple HealthKit and announces it aloud — eyes and hands free. All processing
+  is on-device.
+type: software
+authors:
+  - given-names: gerard
+    family-names: ziemski
+    affiliation: "halfmarble LLC"
+  - name: "halfmarble LLC"
+version: 1.0.0
+date-released: 2026-06-02
+license: Apache-2.0
+repository-code: "https://github.com/gerard-hm/SteadyHeartBeat"
+url: "https://halfmarble.com"
+keywords:
+  - heart rate
+  - AirPods
+  - HealthKit
+  - on-device
+  - wearable
+  - Flutter
+  - iOS
+# Software DOI (Zenodo, via GitHub release) is added here after the 1.0.0 release.
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.20510077
+    description: "Defensive publication (prior art) — consumer earbud as a closed-loop biometric sensor and ambient feedback device for exercise support"
+  - type: doi
+    value: 10.5281/zenodo.20510165
+    description: "Defensive publication (prior art) — heart-rate-recovery-gated rest-interval timing with audio status updates through a consumer earbud"

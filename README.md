@@ -29,6 +29,12 @@ Requires **AirPods with heart rate monitoring** (AirPods Pro 3 or later) and iOS
 
 ---
 
+## Recommended: install a premium voice
+
+For the clearest spoken readout, install Apple's **Ava (Premium)** voice before your first workout: **Settings → Accessibility → Spoken Content → Voices → English → Ava**, then choose the **Premium** quality (one-time download). SteadyHeartBeat automatically prefers the highest-quality installed voice (premium → enhanced → default), and you can also pick it explicitly in **Preferences → Voice & announcements → Voice**. Without a premium voice the app falls back to the standard system voice, which sounds noticeably more robotic.
+
+---
+
 ## Architecture
 
 ```
@@ -52,7 +58,7 @@ AirPods Pro 3 optical sensor
 Voice TTS                  Live chart
 (AVSpeechSynthesizer)      + overlay
    │                           │
-   └─────────AirPods────────────┘
+   └─────────AirPods───────────┘
          (same device)
 ```
 
