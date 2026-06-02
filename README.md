@@ -1,4 +1,4 @@
-<img align="right" width="120" src="app_store/screenshots/AppIcon.png" alt="SteadyHeartBeat app icon">
+<img align="right" width="120" src="assets/icons/AppIcon.png" alt="SteadyHeartBeat app icon">
 
 # SteadyHeartBeat
 
@@ -29,16 +29,16 @@ Built by [halfmarble LLC](https://halfmarble.com) as a proof of concept for ambi
 
 <table>
   <tr>
-    <td align="center" width="33%"><img src="app_store/screenshots/IMG_8601.PNG" alt="Home screen with pre-workout readiness snapshot and workout selector"><br><sub>Pre-workout readiness — resting HRV, resting HR, VO₂ max — then pick a workout type</sub></td>
-    <td align="center" width="33%"><img src="app_store/screenshots/IMG_8604.PNG" alt="Zone coaching with a target zone selected"><br><sub>Set a target zone and hear "push" / "ease off" coaching as you train</sub></td>
-    <td align="center" width="33%"><img src="app_store/screenshots/IMG_8597.PNG" alt="Voice picker showing installed premium voices"><br><sub>Automatically prefers your best installed voice — or pick one explicitly</sub></td>
+    <td align="center" width="33%"><img src="assets/screenshots/IMG_8601.PNG" alt="Home screen with pre-workout readiness snapshot and workout selector"><br><sub>Pre-workout readiness — resting HRV, resting HR, VO₂ max — then pick a workout type</sub></td>
+    <td align="center" width="33%"><img src="assets/screenshots/IMG_8604.PNG" alt="Zone coaching with a target zone selected"><br><sub>Set a target zone and hear "push" / "ease off" coaching as you train</sub></td>
+    <td align="center" width="33%"><img src="assets/screenshots/IMG_8603.PNG" alt="Boxing round timer with configurable rounds, rest, and ten-second warning"><br><sub>Boxing round timer — amateur/pro presets, configurable rounds, rest, and "ten seconds" warning</sub></td>
   </tr>
 </table>
 
 The full-session HR chart, colored by training zone (green recovery → red maximum effort), turn the phone landscape:
 
 <p align="center">
-  <img width="760" src="app_store/screenshots/IMG_8600.PNG" alt="Landscape live heart-rate chart with 5-zone color gradient">
+  <img width="760" src="assets/screenshots/IMG_8600.PNG" alt="Landscape live heart-rate chart with 5-zone color gradient">
 </p>
 
 ---
