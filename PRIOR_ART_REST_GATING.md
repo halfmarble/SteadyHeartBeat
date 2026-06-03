@@ -2,7 +2,7 @@
 
 **Title:** Heart-rate-recovery-gated rest-interval timing with audio status updates through a consumer earbud
 **Author / discloser:** halfmarble LLC (gerard ziemski, Cofounder | Bioenergetics OS Architect)
-**Effective publication date:** 2026-06-02 (the date this document first became publicly accessible)
+**Effective publication date:** 2026-06-04 (the date this document first became publicly accessible)
 **Status:** Defensive publication. The method described herein is dedicated to the public domain (see *Dedication*, below).
 **Permanent archive (DOI):** <https://doi.org/10.5281/zenodo.20510165>
 

@@ -2,7 +2,7 @@
 
 **Title:** Consumer earbud as a closed-loop biometric sensor and ambient feedback device for exercise support
 **Author / discloser:** halfmarble LLC (gerard ziemski, Cofounder | Bioenergetics OS Architect)
-**Effective publication date:** 2026-06-02 (the date this document first became publicly accessible)
+**Effective publication date:** 2026-06-04 (the date this document first became publicly accessible)
 **Status:** Defensive publication. The methods and techniques described herein are dedicated to the public domain (see *Dedication*, below).
 **Permanent archive (DOI):** <https://doi.org/10.5281/zenodo.20510077>
 
