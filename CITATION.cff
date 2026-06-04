@@ -14,7 +14,7 @@ authors:
 version: 1.0.0
 date-released: 2026-06-04
 license: Apache-2.0
-repository-code: "https://github.com/gerard-hm/SteadyHeartBeat"
+repository-code: "https://github.com/halfmarble/SteadyHeartBeat"
 url: "https://halfmarble.com"
 keywords:
   - heart rate
