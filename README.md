@@ -36,10 +36,16 @@ Built by [halfmarble LLC](https://halfmarble.com) as a proof of concept for ambi
   </tr>
 </table>
 
-The full-session HR chart, colored by training zone (green recovery → red maximum effort), turn the phone landscape:
+The full-session HR chart fills the screen, colored by training zone (green recovery → red maximum effort) — turn the phone landscape. Below, the same hike recorded on two people:
 
 <p align="center">
-  <img width="760" src="assets/screenshots/IMG_8600.PNG" alt="Landscape live heart-rate chart with 5-zone color gradient">
+  <img width="760" src="assets/screenshots/IMG_8632.PNG" alt="Landscape heart-rate chart from a real hike with a higher-intensity profile reaching Zone 5"><br>
+  <sub>A higher-intensity profile — sustained Zone 4 with Zone 5 peaks (max 150, avg 131)</sub>
+</p>
+
+<p align="center">
+  <img width="760" src="assets/screenshots/IMG_8645.PNG" alt="Landscape heart-rate chart from the same hike showing a long aerobic effort bookended by two climbs"><br>
+  <sub>A long aerobic effort bookended by two climbs (max 128, avg 96, over two hours)</sub>
 </p>
 
 ---
