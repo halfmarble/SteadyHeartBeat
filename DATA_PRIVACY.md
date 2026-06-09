@@ -31,7 +31,9 @@ manage yourself (your iCloud account, system crash diagnostics).
 | Health profile (age, sex, conditions, metrics) in backup | ✅ Excluded from backup |
 | Saving workouts to Apple Health | ⚙️ Optional — on by default, can be turned off |
 | Heart-rate values in device logs | ✅ Removed from release builds |
-| Share sheet / clipboard | ✅ Not used |
+| Exporting a copy of your own data | ⚙️ Only when you tap **Export My Data** |
+| Clipboard | ✅ Not used |
+| Share sheet | ⚙️ Used only for the export you start |
 | Siri / Spotlight / Handoff / App Groups / Widgets | ✅ Not used |
 | Spoken heart-rate readout | ⚠️ Audible by design |
 
@@ -41,9 +43,11 @@ manage yourself (your iCloud account, system crash diagnostics).
 
 There is no networking code in the app, and none of its components contact a
 server. Its dependencies — `shared_preferences`, `provider`, `fl_chart`,
-`path_provider`, `wakelock_plus`, `url_launcher`, `cupertino_icons` — are all
-local. `url_launcher` is used only to open the iOS Settings app and a static
-halfmarble web link in your browser; it never sends app data anywhere.
+`path_provider`, `wakelock_plus`, `url_launcher`, `share_plus`,
+`cupertino_icons` — are all local. `url_launcher` is used only to open the iOS
+Settings app and a static halfmarble web link in your browser; `share_plus` only
+presents the system share sheet when you tap **Export My Data** (section 9).
+Neither sends app data anywhere on its own.
 
 To keep it that way, an automated test (`test/data_privacy_test.dart`) checks
 the project's dependency list against a vetted allowlist and **fails the build**
@@ -106,11 +110,13 @@ health values are written to the system log.
 
 Code: `lib/providers/workout_provider.dart`.
 
-## 7. No sharing, clipboard, or system-integration leaks
+## 7. No silent sharing or system-integration leaks
 
-The app does not use the share sheet, the clipboard, Siri/Spotlight donations,
-Handoff, App Groups, or home-screen widgets — none of the usual paths that can
-quietly move data off the app or onto other devices.
+The app does not use the clipboard, Siri/Spotlight donations, Handoff, App Groups,
+or home-screen widgets — none of the usual paths that can *quietly* move data off
+the app or onto other devices. It uses the share sheet in exactly one place: the
+**Export My Data** button you tap yourself (section 9). It is never invoked
+automatically.
 
 ## 8. The spoken readout is audible by design
 
@@ -118,6 +124,37 @@ SteadyHeartBeat's purpose is to announce your heart rate aloud through your
 AirPods. If your audio is routed elsewhere (CarPlay, AirPlay, the phone speaker),
 the readout plays there instead. That's inherent to the feature — noted here for
 completeness.
+
+## 9. Exporting your own data is your choice
+
+Your data belongs to you, so the app lets you take it with you.
+**Preferences → Your Data → Export My Data** assembles everything stored on the
+device — your workout sessions and your health profile — into a single plaintext
+JSON file and hands it to the iOS share sheet, so you can save it to Files,
+AirDrop it, or send it wherever you like.
+
+This is the one place the app deliberately moves data *out* of its protected
+storage, and only ever when you tap the button. Two things worth knowing:
+
+- **The file is not encrypted.** It's a readable copy of your own data, meant for
+  you to use. Once you save it outside the app it's no longer under the app's
+  protection — it follows wherever you put it and your own device/cloud settings,
+  so keep it somewhere you trust. (Why not encrypt it? Handing you a locked copy
+  of your own data would either ship you the key too, or risk locking you out of
+  your own data if you lost a passphrase. Portability standards hand over readable
+  files for this reason.)
+- **It does not upload anywhere.** Export only opens the share sheet; the app still
+  makes no network requests of its own. Where the copy goes next is entirely your
+  choice.
+
+The companion **Delete All Data** button on the same screen permanently erases your
+workout history and health profile from the device (your app settings — voice,
+units, intervals — are kept).
+
+Code: `lib/services/export_service.dart`,
+`lib/services/session_storage_service.dart`,
+`lib/services/health_profile_store.dart`, `lib/providers/workout_provider.dart`,
+`lib/screens/preferences_screen.dart`.
 
 ---
 
@@ -146,6 +183,9 @@ These guarantees are backed by automated tests, so they don't quietly regress:
   the backup-exclusion flag is actually applied to each storage folder, and the
   one-time migration copies your data into the excluded store before removing the
   old copies.
+- `test/data_export_test.dart` — the export bundle contains your sessions and
+  health profile and nothing else; "Delete All Data" removes every stored session
+  and the health profile while keeping non-health app settings.
 
 Two pieces are verifiable only in a full iOS build rather than a unit test: the
 native code that discards a workout when the Apple Health toggle is off, and the

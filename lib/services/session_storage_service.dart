@@ -114,6 +114,30 @@ class SessionStorageService {
     }
   }
 
+  /// Deletes every stored session (and any in-progress snapshot). Used by the
+  /// "Delete all data" action so the owner can wipe their workout history in one
+  /// step. Returns the number of session files removed (the in-progress snapshot
+  /// is not counted). Best-effort: a file that fails to delete is skipped.
+  static Future<int> deleteAll() async {
+    var removed = 0;
+    try {
+      final dir = await _dir();
+      for (final f in dir.listSync().whereType<File>()) {
+        if (!f.path.endsWith('.json')) continue;
+        final isInProgress = f.path.endsWith('/$_inProgressFilename');
+        try {
+          f.deleteSync();
+          if (!isInProgress) removed++;
+        } catch (e) {
+          debugPrint('SessionStorageService.deleteAll (file): $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('SessionStorageService.deleteAll: $e');
+    }
+    return removed;
+  }
+
   static Future<int> count() async {
     try {
       final dir = await _dir();

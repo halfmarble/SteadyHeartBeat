@@ -42,6 +42,18 @@ class HealthProfileStore {
     }
   }
 
+  /// Deletes the stored health profile file. Used by the "Delete all data"
+  /// action. Best-effort: a failure is logged and swallowed (a missing file is
+  /// already the desired end state).
+  static Future<void> clear() async {
+    try {
+      final f = await _file();
+      if (f.existsSync()) await f.delete();
+    } catch (e) {
+      debugPrint('HealthProfileStore.clear: $e');
+    }
+  }
+
   /// Overwrites the stored health map. Returns true on success. A write failure
   /// is logged and returns false so the caller can decide whether it's safe to
   /// drop the legacy backed-up copy — the in-memory values remain authoritative

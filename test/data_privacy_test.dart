@@ -196,6 +196,10 @@ void main() {
       const allowed = {
         'flutter', 'cupertino_icons', 'shared_preferences', 'provider',
         'fl_chart', 'path_provider', 'wakelock_plus', 'url_launcher',
+        // share_plus: presents the OS share sheet for the user-initiated data
+        // export. Vetted local-only — it invokes UIActivityViewController and
+        // has no network access of its own. See DATA_PORTABILITY.md.
+        'share_plus',
       };
 
       final lines = File('pubspec.yaml').readAsLinesSync();

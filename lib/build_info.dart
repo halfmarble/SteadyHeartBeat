@@ -2,4 +2,4 @@
 // number" PBXShellScriptBuildPhase) before each iOS build. Displayed next to
 // the app title in the AppBar so the user can verify the latest build is
 // installed.
-const String kBuildNumber = '300';
+const String kBuildNumber = '303';

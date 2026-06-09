@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/workout_provider.dart';
 import '../services/workout_service.dart';
+import '../services/export_service.dart';
 import '../constants.dart';
 import 'voice_screen.dart';
 
@@ -72,6 +73,10 @@ class PreferencesScreen extends StatelessWidget {
             _SectionHeader(title: 'BACKGROUND ALERTS'),
             const SizedBox(height: 8),
             const _NotificationsSection(),
+            const SizedBox(height: 32),
+            _SectionHeader(title: 'YOUR DATA'),
+            const SizedBox(height: 8),
+            _YourDataSection(provider: provider),
             const SizedBox(height: 48),
             _AboutSection(),
             const SizedBox(height: 32),
@@ -696,6 +701,134 @@ class _HealthAuthSection extends StatelessWidget {
                         : (error != null ? 'Try Again' : 'Authorize Health Access'),
                   ),
                 ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Lets the owner exercise their data rights: export a complete, plaintext copy
+/// off-device via the system share sheet, or erase everything stored on the
+/// device. The export is the one place the app deliberately moves data out of
+/// its protected storage, and only on an explicit tap — see DATA_PORTABILITY.md.
+class _YourDataSection extends StatefulWidget {
+  const _YourDataSection({required this.provider});
+  final WorkoutProvider provider;
+
+  @override
+  State<_YourDataSection> createState() => _YourDataSectionState();
+}
+
+class _YourDataSectionState extends State<_YourDataSection> {
+  bool _exporting = false;
+  bool _deleting = false;
+
+  Future<void> _export() async {
+    setState(() => _exporting = true);
+    // Anchor the iPad share popover to the screen centre (harmless on iPhone).
+    final size = MediaQuery.of(context).size;
+    final origin = Rect.fromCenter(
+        center: Offset(size.width / 2, size.height / 2), width: 0, height: 0);
+    final ok = await ExportService.exportToShareSheet(origin: origin);
+    if (!mounted) return;
+    setState(() => _exporting = false);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Could not prepare your data for export. Please try again.'),
+      ));
+    }
+  }
+
+  Future<void> _confirmDelete() async {
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (_) => CupertinoAlertDialog(
+        title: const Text('Delete all data?'),
+        content: const Text(
+          'This permanently removes your workout history and health profile '
+          '(age, sex, conditions, and metrics) from this device. Your app '
+          'settings are kept. This cannot be undone.',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() => _deleting = true);
+    final removed = await widget.provider.clearAllData();
+    if (!mounted) return;
+    setState(() => _deleting = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(removed == 1
+          ? 'Deleted 1 session and your health profile.'
+          : 'Deleted $removed sessions and your health profile.'),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final busy = _exporting || _deleting;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Your data is yours. Export a complete, unencrypted copy to keep or '
+          'share — it leaves the app\'s protected storage, so save it somewhere '
+          'you trust. Or erase everything stored on this device.',
+          style: TextStyle(color: kTextSubtle, fontSize: kFontBase, height: 1.4),
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          height: 44,
+          child: FilledButton(
+            onPressed: busy ? null : _export,
+            style: FilledButton.styleFrom(
+              backgroundColor: kSurface,
+              foregroundColor: kAccent,
+              side: const BorderSide(color: kAccent),
+              disabledBackgroundColor: kSurface,
+              disabledForegroundColor: kTextDim,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: _exporting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: kAccent),
+                  )
+                : const Text('Export My Data'),
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 44,
+          child: FilledButton(
+            onPressed: busy ? null : _confirmDelete,
+            style: FilledButton.styleFrom(
+              backgroundColor: kSurface,
+              foregroundColor: kAccent,
+              side: const BorderSide(color: kAccent),
+              disabledBackgroundColor: kSurface,
+              disabledForegroundColor: kTextDim,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: _deleting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: kAccent),
+                  )
+                : const Text('Delete All Data'),
+          ),
         ),
       ],
     );

@@ -148,11 +148,17 @@ class _SessionsScreenState extends State<SessionsScreen> {
                         child: const Icon(CupertinoIcons.trash,
                             color: kAccent, size: kIconSM),
                       ),
-                      // Open the full chart by swiping the card right; swipe
-                      // left deletes. (No tap gestures — swipe-only.)
-                      child: _SessionCard(
-                        session: session,
-                        useImperial: useImperial,
+                      // Open the full chart by swiping the card right OR
+                      // double-tapping it; swipe left deletes. (Double-tap, not
+                      // single-tap, so a stray touch while scrolling the list
+                      // doesn't fling open a dialog.)
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onDoubleTap: () => _showSessionChart(context, session),
+                        child: _SessionCard(
+                          session: session,
+                          useImperial: useImperial,
+                        ),
                       ),
                     );
                   },
@@ -403,11 +409,15 @@ class _SessionChartViewState extends State<_SessionChartView>
     }
   }
 
-  /// Wraps a chrome region (header / summary) as a swipe-up dismiss handle.
+  /// Wraps a chrome region (header / summary) as a dismiss handle: swipe it up,
+  /// or double-tap it, to close the detail view. The chart between them takes
+  /// the same double-tap-to-close (see its own wrapper) but no dismiss-drag, so
+  /// the landscape scrubber's drag stays unobstructed.
   Widget _dragHandle(Widget child) => GestureDetector(
         behavior: HitTestBehavior.opaque,
         onVerticalDragUpdate: _onDragUpdate,
         onVerticalDragEnd: _onDragEnd,
+        onDoubleTap: () => Navigator.of(context).maybePop(),
         child: child,
       );
 
@@ -477,8 +487,16 @@ class _SessionChartViewState extends State<_SessionChartView>
                   ],
                 )),
                 const SizedBox(height: kSpaceMD),
-                // Chart — left free (no dismiss drag) so it can be scrubbed.
-                Expanded(child: widget.chart),
+                // Chart — double-tap closes the view (a discrete tap gesture,
+                // so it doesn't claim the drag the landscape scrubber needs);
+                // no dismiss-DRAG here, which would fight the scrub.
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onDoubleTap: () => Navigator.of(context).maybePop(),
+                    child: widget.chart,
+                  ),
+                ),
                 const SizedBox(height: kSpaceMD),
                 // Summary is also a swipe-up dismiss handle.
                 _dragHandle(_SessionSummary(

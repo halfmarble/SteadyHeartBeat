@@ -709,6 +709,36 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// Wipes everything the app stores on-device: the workout session history and
+  /// the health profile (age, sex, conditions, manual metrics, derived zones).
+  /// App settings (voice, units, intervals) are intentionally kept — they aren't
+  /// health data. Resets the in-memory health state to its first-launch defaults
+  /// so the UI reflects the wipe immediately. Returns the number of sessions
+  /// deleted. (HealthKit-derived metrics that mirror Apple Health may re-populate
+  /// from the user's own Health data on the next read — that store is theirs, not
+  /// ours, and isn't touched here.)
+  Future<int> clearAllData() async {
+    final removed = await SessionStorageService.deleteAll();
+    await HealthProfileStore.clear();
+    final prefs = await SharedPreferences.getInstance();
+    await _stripLegacyHealthPrefs(prefs); // defensive: drop any un-migrated copies
+
+    healthConditions = {};
+    dangerZoneThreshold = kDefaultDangerBpm;
+    manualAge = null;
+    manualSex = null;
+    healthSex = null;
+    healthAge = null;
+    maxHeartRate = null;
+    zone1End = zone2Start = zone3Start = zone4Start = zone5Start = null;
+    manualHrvMs = null;
+    manualVo2Max = null;
+    manualRestingHr = null;
+    manualWeightKg = null;
+    _safeNotify();
+    return removed;
+  }
+
   Future<void> start() async {
     state = MonitoringState.starting;
     errorMessage = null;
