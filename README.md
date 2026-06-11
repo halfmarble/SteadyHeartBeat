@@ -134,6 +134,8 @@ All processing is on-device — halfmarble never receives your data, and nothing
 
 The one exception is **Apple Health**: by default each finished workout is saved there for your Activity rings, after which it follows your own iCloud Health sync settings. You can turn that off in Preferences (**Apple Health → Save workouts to Apple Health**), and the workout will stay on this device only.
 
+**Your data is yours — locked in is not the goal.** Protecting data this aggressively has a failure mode: it can lock out the owner too. So **Preferences → Your Data** gives you two unconditional actions: **Export My Data** — a complete, readable copy of everything the app stores (sessions and health profile), handed over through the system share sheet to a destination you choose — and **Delete All Data**, which erases it from the device. The export sheet also offers **Anonymize for Research…**, which produces a de-identified copy (random IDs, identity and absolute timestamps stripped) if you choose to donate it. Nothing uploads anywhere; both paths end at the share sheet. The full reasoning — including why a readable export is *more* respectful of ownership than an encrypted one — is in [docs/DATA_PORTABILITY.md](docs/DATA_PORTABILITY.md).
+
 For a complete breakdown of every way data could leave the device and how each is handled — verifiable against the code — see **[DATA_PRIVACY.md](DATA_PRIVACY.md)**. The full privacy policy is at [halfmarble.com/steadyheartbeat/privacy.html](https://halfmarble.com/steadyheartbeat/privacy.html).
 
 ---
