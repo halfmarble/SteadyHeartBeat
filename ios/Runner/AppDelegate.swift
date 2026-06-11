@@ -189,7 +189,13 @@ import AVFoundation
                 }
 
             default:
-                result(FlutterMethodNotImplemented)
+                // Methods the core doesn't know are offered to the SHB+
+                // module's engine (a no-op in the free core).
+                if WorkoutManager.shared.handlePlusMethod(call.method, arguments: call.arguments) {
+                    result(nil)
+                } else {
+                    result(FlutterMethodNotImplemented)
+                }
             }
         }
 

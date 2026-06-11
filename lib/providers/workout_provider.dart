@@ -9,6 +9,8 @@ import '../services/tts_service.dart';
 import '../services/session_storage_service.dart';
 import '../services/health_profile_store.dart';
 import '../constants.dart';
+import '../plus_api.dart';
+import '../plus_binding.dart';
 
 enum MonitoringState { idle, starting, running, error, stopped }
 
@@ -260,7 +262,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   int totalRounds = 12;                // 0 = unlimited
   bool roundWarnEnabled = true;        // "ten seconds" cue before round end
   // Live round state, updated from native 'round' status events.
-  String roundPhase = 'done';          // prep | work | rest | done
+  String roundPhase = 'done';          // prep | warmup | work | rest | cooldown | done
   int currentRound = 0;
   int roundTotal = 0;
   int roundRemaining = 0;
@@ -302,12 +304,29 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// point to assert post-load state rather than racing the async constructor.
   late final Future<void> initialized;
 
-  WorkoutProvider({WorkoutService? workout, TtsService? tts})
+  /// The SHB+ paid module — inert [NoPlusFeatures] in the public free core,
+  /// the real implementation (lib/plus/) in the private repo, per the binding
+  /// in plus_binding.dart. Tests inject a [plusFactory] to capture pushes.
+  late final PlusFeatures plus;
+
+  WorkoutProvider(
+      {WorkoutService? workout,
+      TtsService? tts,
+      PlusFeatures Function(WorkoutProvider provider)? plusFactory})
       : _workout = workout ?? WorkoutService(),
         _tts = tts ?? TtsService() {
+    plus = (plusFactory ?? createPlusFeatures)(this);
     initialized = _loadPrefs();
     WidgetsBinding.instance.addObserver(this);
     _startIdlePoll();
+  }
+
+  /// Called by the SHB+ module when its state changes: rebroadcasts to this
+  /// provider's listeners and optionally persists preferences (the module's
+  /// settings ride [savePrefs]).
+  void plusChanged({bool persist = false}) {
+    if (persist) savePrefs();
+    _safeNotify();
   }
 
   @override
@@ -420,6 +439,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     restSecs = prefs.getInt('restSecs') ?? 60;
     totalRounds = prefs.getInt('totalRounds') ?? 12;
     roundWarnEnabled = prefs.getBool('roundWarnEnabled') ?? true;
+    plus.loadPrefs(prefs);
     useImperial = prefs.getBool('useImperial') ?? true;
     saveToHealth = prefs.getBool('saveToHealth') ?? true;
     final wt = prefs.getString('workoutType') ?? 'boxing';
@@ -541,6 +561,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     await prefs.setInt('restSecs', restSecs);
     await prefs.setInt('totalRounds', totalRounds);
     await prefs.setBool('roundWarnEnabled', roundWarnEnabled);
+    await plus.savePrefs(prefs);
     await prefs.setString('workoutType', selectedWorkoutType.hkKey);
     await prefs.setBool('useImperial', useImperial);
     await prefs.setBool('saveToHealth', saveToHealth);
@@ -934,6 +955,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     roundTotal = 0;
     roundRemaining = 0;
     _pushBoxingConfig();
+    plus.onWorkoutStart();
 
     // Push the save-to-Health choice before the session ends. The native
     // singleton defaults to "save", so re-pushing here ensures a relaunch with
@@ -1072,6 +1094,9 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
       currentRound = data['round'] as int? ?? 0;
       roundTotal = data['total'] as int? ?? 0;
       roundRemaining = data['remaining'] as int? ?? 0;
+      // The SHB+ module reads its own fields from the event (no-op in the
+      // free core).
+      plus.onRoundEvent(data);
       notifyListeners();
       return;
     }

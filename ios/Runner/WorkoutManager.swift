@@ -115,7 +115,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     private var _totalRounds = 12      // 0 = unlimited
     private var _warnSecs = 10         // "ten seconds" cue before round end; 0 = off
     private var _prepSecs = 10         // silent get-ready countdown before round 1
-    private enum RoundPhase: String { case prep, work, rest, done }
+    private enum RoundPhase: String { case prep, warmup, work, rest, cooldown, done }
     private var _roundPhase: RoundPhase = .done
     private var _currentRound = 0
     private var _phaseRemaining = 0    // seconds left in the current phase
@@ -123,6 +123,18 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     // BPM announces are suppressed until this time so they don't collide with a
     // boxing countdown/bell/announcement (set in _tickRound).
     private var _suppressBpmUntil: TimeInterval = 0
+
+    // MARK: - SHB+ gate engine plug point
+    //
+    // HR-gated phases (warm-up / recovery-gated rest / cool-down) are driven by
+    // the SHB+ module's gate engine, reached only through GateEngineProtocol
+    // (declared at the bottom of this file). The implementation lives in
+    // Plus/GateEngine.swift; the public free core carries a stub version of
+    // that file whose engine has every enable false — the gated branches below
+    // are then unreachable and the round timer behaves byte-for-byte like the
+    // fixed-time boxing timer. Cue wording, targets, and pacing all live in
+    // the engine, not here.
+    private let _gates: GateEngineProtocol = makeGateEngine()
 
     // Barometric elevation (CMAltimeter). Relative altitude only — no GPS — gated
     // by NSMotionUsageDescription. Total ASCENT is accumulated with a hysteresis
@@ -472,11 +484,22 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         _prepSecs = max(0, prepSecs)
     }
 
+    // Offers a method-channel call the core doesn't recognize to the SHB+
+    // module (e.g. its gate-config push). Returns true when consumed; the
+    // free core's stub engine consumes nothing.
+    func handlePlusMethod(_ method: String, arguments: Any?) -> Bool {
+        _gates.handle(method: method, arguments: arguments)
+    }
+
     private func _startRoundTimer() {
         _stopRoundTimer()
         guard _boxingEnabled else { return }
+        _gates.reset()
         _currentRound = 0
-        if _prepSecs > 0 {
+        if _gates.warmupEnabled {
+            // HR-gated warm-up precedes round 1 (supersedes the silent prep countdown).
+            _enterGatedPhase(.warmup)
+        } else if _prepSecs > 0 {
             _roundPhase = .prep
             _phaseRemaining = _prepSecs
         } else {
@@ -498,6 +521,18 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
 
     private func _tickRound() {
         guard _roundPhase != .done else { return }
+
+        // Gated phases (warm-up / recovery-gated rest / cool-down) advance on heart
+        // rate, not a countdown. The engine emits its own escalating HR cue.
+        if _isInGatedPhase {
+            if _gates.tick(phase: _roundPhase.rawValue, bpm: _latestBpm,
+                           speak: { [weak self] in self?.speak(text: $0) }) {
+                _advanceRound()
+            }
+            _emitRound()
+            return
+        }
+
         _phaseRemaining -= 1
         // Hold off BPM announces around the countdown + bell/announcement so they
         // don't collide with "3,2,1 → bell → ROUND X / REST". Covers the 3 s
@@ -532,11 +567,21 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         switch _roundPhase {
         case .prep:
             _enterWork()
+        case .warmup:
+            // Warm-up reached the work band (or capped) → round 1.
+            if let cue = _gates.exitCue("warmup") { speak(text: cue) }
+            _enterWork()
         case .work:
             // 0 = unlimited, so it never reaches the finish.
             if _totalRounds > 0 && _currentRound >= _totalRounds {
-                speak(text: "Workout complete", withBell: true)
-                _stopRoundTimer()   // sets phase = .done
+                if _gates.cooldownEnabled {
+                    _enterGatedPhase(.cooldown)
+                } else {
+                    speak(text: "Workout complete", withBell: true)
+                    _stopRoundTimer()   // sets phase = .done
+                }
+            } else if _gates.restEnabled {
+                _enterGatedPhase(.rest)
             } else if _restSecs > 0 {
                 _roundPhase = .rest
                 _phaseRemaining = _restSecs
@@ -545,20 +590,50 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
                 _enterWork()        // no rest configured → next round immediately
             }
         case .rest:
+            // A gated rest that hit its cap → tell the user before the next round.
+            if _gates.restEnabled, let cue = _gates.exitCue("rest") {
+                speak(text: cue)
+            }
             _enterWork()
+        case .cooldown:
+            speak(text: _gates.exitCue("cooldown") ?? "Workout complete", withBell: true)
+            _stopRoundTimer()
         case .done:
             break
         }
     }
 
     private func _emitRound() {
-        statusEventSink?([
+        var payload: [String: Any] = [
             "type": "round",
             "phase": _roundPhase.rawValue,
             "round": _currentRound,
             "total": _totalRounds,
             "remaining": max(0, _phaseRemaining),
-        ])
+        ]
+        // During a gated phase, the engine adds the HR-gate fields so the
+        // foreground UI can render the gate panel (target / current / elapsed /
+        // cap) instead of a countdown.
+        if _isInGatedPhase {
+            payload.merge(_gates.statusPayload(bpm: _latestBpm)) { _, new in new }
+        }
+        statusEventSink?(payload)
+    }
+
+    // MARK: - SHB+ gated-phase seams
+
+    // True while the current phase advances on heart rate (engine-driven)
+    // rather than a countdown. Always false with the free core's stub engine.
+    private var _isInGatedPhase: Bool {
+        _roundPhase == .warmup || _roundPhase == .cooldown
+            || (_roundPhase == .rest && _gates.restEnabled)
+    }
+
+    // Enter a gated phase: the engine resets its clocks and supplies the
+    // opening cue.
+    private func _enterGatedPhase(_ phase: RoundPhase) {
+        _roundPhase = phase
+        speak(text: _gates.enterPhase(phase.rawValue))
     }
 
     // Synthesizes a boxing-bell "clang" at the given (TTS render) format so it can
@@ -908,6 +983,9 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
 
     private func _tickAnnounce() {
         guard _latestBpm > 0, session != nil else { return }
+        // Gated phases own the HR announce (the engine's escalating cadence); stay
+        // quiet here so the periodic doesn't double up with the gate's cue.
+        if _isInGatedPhase { return }
         // Continuous mode polls frequently; don't pile utterances on top of one
         // another — wait for the current one to finish. This isSpeaking gate is
         // what makes the announces run back-to-back rather than overlapping.
@@ -1530,4 +1608,51 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     }
 
     func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {}
+}
+
+// MARK: - SHB+ gate engine surface (core side)
+//
+// The round timer reaches the SHB+ HR-gate engine exclusively through this
+// protocol; phases travel as RoundPhase.rawValue strings so the engine stays
+// decoupled from the private enum. Plus/GateEngine.swift defines
+// makeGateEngine() — the real engine in the private repo, a stub returning
+// NoGateEngine in the public export (same filename, so project.pbxproj is
+// identical in both repos). With NoGateEngine every enable is false, the gated
+// branches above are unreachable, and the round timer behaves byte-for-byte
+// like the fixed-time boxing timer.
+protocol GateEngineProtocol: AnyObject {
+    var warmupEnabled: Bool { get }
+    var restEnabled: Bool { get }
+    var cooldownEnabled: Bool { get }
+    /// Offered any method-channel call the core doesn't handle (e.g. the
+    /// module's config push). Returns true when consumed.
+    func handle(method: String, arguments: Any?) -> Bool
+    /// Reset per-workout state; called when the round timer starts.
+    func reset()
+    /// Entering a gated phase: reset the engine's clocks; returns the cue to
+    /// speak.
+    func enterPhase(_ phase: String) -> String
+    /// One 1-second tick of a gated phase. Speaks HR cues via `speak`; returns
+    /// true when the phase should advance (target reached after the floor, or
+    /// the cap hit).
+    func tick(phase: String, bpm: Double, speak: (String) -> Void) -> Bool
+    /// Cue spoken when a gated phase advances (nil = silent).
+    func exitCue(_ phase: String) -> String?
+    /// HR-gate fields merged into the 'round' status event during a gated
+    /// phase (target / current / elapsed / bounds for the gate panel UI).
+    func statusPayload(bpm: Double) -> [String: Any]
+}
+
+/// The free core's engine: nothing enabled, nothing handled. The gated code
+/// paths in WorkoutManager are unreachable with this engine installed.
+final class NoGateEngine: GateEngineProtocol {
+    var warmupEnabled: Bool { false }
+    var restEnabled: Bool { false }
+    var cooldownEnabled: Bool { false }
+    func handle(method: String, arguments: Any?) -> Bool { false }
+    func reset() {}
+    func enterPhase(_ phase: String) -> String { "" }
+    func tick(phase: String, bpm: Double, speak: (String) -> Void) -> Bool { true }
+    func exitCue(_ phase: String) -> String? { nil }
+    func statusPayload(bpm: Double) -> [String: Any] { [:] }
 }

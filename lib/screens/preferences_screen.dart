@@ -75,6 +75,10 @@ class PreferencesScreen extends StatelessWidget {
             const SizedBox(height: 8),
             const _NotificationsSection(),
             const SizedBox(height: 32),
+            // SHB+ module section — null (absent) in the free core or while
+            // the upgrade is locked; renders its own header and spacing.
+            if (provider.plus.preferencesSection(context) case final Widget plusSection)
+              plusSection,
             _SectionHeader(title: 'YOUR DATA'),
             const SizedBox(height: 8),
             _YourDataSection(provider: provider),
