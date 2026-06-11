@@ -130,6 +130,11 @@ import AVFoundation
                 WorkoutManager.shared.setSaveToHealth(enabled)
                 result(nil)
 
+            case "setUseImperial":
+                let imperial = (call.arguments as? [String: Any])?["imperial"] as? Bool ?? true
+                WorkoutManager.shared.setUseImperial(imperial)
+                result(nil)
+
             case "setZones":
                 let bounds = (call.arguments as? [String: Any])?["bounds"] as? [Int] ?? []
                 WorkoutManager.shared.setZones(bounds)

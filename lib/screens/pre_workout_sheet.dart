@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import '../providers/workout_provider.dart';
 import '../constants.dart';
+import '../widgets/workout_type_icon.dart';
 
 /// Entry point for the Start Workout button. Some workout types get a
 /// pre-workout configuration panel (a modal bottom sheet) before monitoring
@@ -279,7 +280,8 @@ class _BoxingSheet extends StatelessWidget {
             children: [
               Row(
                 children: const [
-                  Icon(Icons.sports_mma, color: kAccent, size: 22),
+                  WorkoutTypeIcon(
+                      type: WorkoutType.boxing, size: 22, color: kAccent),
                   SizedBox(width: 8),
                   Text('Boxing',
                       style: TextStyle(

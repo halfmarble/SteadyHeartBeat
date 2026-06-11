@@ -49,6 +49,7 @@ class _CapturingWorkoutService extends WorkoutService {
   @override Future<bool> startWorkout({String workoutType = 'other', int announceIntervalSeconds = 15}) async => true;
   @override Future<void> stopWorkout() async {}
   @override Future<void> setAnnounceInterval(int seconds) async {}
+  @override Future<void> setUseImperial(bool imperial) async {}
   @override Future<Map<String, dynamic>> checkAirPods() async =>
       {'connected': true, 'activeOnThisDevice': true, 'name': 'Test AirPods'};
   @override Future<bool> bindAirPods() async => true;

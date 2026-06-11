@@ -875,6 +875,10 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     // the toggle off still discards rather than persisting the workout.
     _workout.setSaveToHealth(saveToHealth);
 
+    // Push the unit preference so the spoken ascent cue ("Climbed N feet/meters")
+    // matches the display. Re-pushed each start for a fresh native singleton.
+    _workout.setUseImperial(useImperial);
+
     // Start native workout session. The announce interval is passed in so the
     // native periodic timer starts at the chosen cadence from the first tick.
     final started = await _workout.startWorkout(
@@ -1522,6 +1526,8 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     useImperial = v;
     notifyListeners();
     savePrefs();
+    // Keep native in sync so a units change mid-workout reaches the ascent cue.
+    _workout.setUseImperial(v);
   }
 
   void clearSaveError() {

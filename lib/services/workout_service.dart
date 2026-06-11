@@ -41,6 +41,13 @@ class WorkoutService {
     await _method.invokeMethod('setSaveToHealth', {'enabled': enabled});
   }
 
+  /// Pushes the unit preference so the native spoken ascent cue ("Climbed N
+  /// feet/meters") matches the app's Metric/Imperial setting. Pushed at workout
+  /// start and on toggle; on-screen values are already formatted Dart-side.
+  Future<void> setUseImperial(bool imperial) async {
+    await _method.invokeMethod('setUseImperial', {'imperial': imperial});
+  }
+
   /// Pushes the 5 zone-start BPM boundaries (50/60/70/80/90% max HR, ascending)
   /// to native so the background announce can name the zone.
   Future<void> setZones(List<int> bounds) async {

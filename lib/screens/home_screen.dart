@@ -16,6 +16,7 @@ import 'pre_workout_sheet.dart';
 import 'sessions_screen.dart';
 import '../utils.dart';
 import '../build_info.dart';
+import '../widgets/workout_type_icon.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -1245,24 +1246,8 @@ class _ButtonWorkoutIconState extends State<_ButtonWorkoutIcon>
     return ScaleTransition(scale: _scale, child: icon);
   }
 
-  Widget _icon() {
-    if (widget.type == WorkoutType.boxing) {
-      return SizedBox(
-        width: 38, height: 22,
-        child: Stack(children: [
-          Positioned(left: 0, top: 0,
-            child: Icon(Icons.sports_mma, size: 22, color: kAccent)),
-          Positioned(right: 0, top: 0,
-            child: Transform(
-              alignment: Alignment.center,
-              transform: Matrix4.diagonal3Values(-1, 1, 1),
-              child: Icon(Icons.sports_mma, size: 22, color: kAccent),
-            )),
-        ]),
-      );
-    }
-    return Icon(widget.type.icon, size: 22, color: kAccent);
-  }
+  Widget _icon() =>
+      WorkoutTypeIcon(type: widget.type, size: 22, color: kAccent);
 }
 
 const double kSensorIndicatorSize = 180;
@@ -2090,17 +2075,6 @@ class BpmChart extends StatelessWidget {
 
 // ── Workout type selector ──────────────────────────────────────────────────────
 
-extension _WorkoutTypeIcon on WorkoutType {
-  IconData get icon => switch (this) {
-    WorkoutType.boxing  => Icons.sports_mma,
-    WorkoutType.cycling => Icons.directions_bike,
-    WorkoutType.running => Icons.directions_run,
-    WorkoutType.walking => Icons.directions_walk,
-    WorkoutType.hiking  => Icons.hiking,
-    WorkoutType.other   => Icons.fitness_center,
-  };
-}
-
 class _WorkoutTypeSelector extends StatelessWidget {
   const _WorkoutTypeSelector({required this.provider, this.disabled = false});
   final WorkoutProvider provider;
@@ -2152,7 +2126,11 @@ class _WorkoutTypeSelector extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _WorkoutIcon(type: type, selected: selected),
+                        WorkoutTypeIcon(
+                          type: type,
+                          size: 22,
+                          color: selected ? Colors.white : kTextLabel,
+                        ),
                         const SizedBox(height: 4),
                         Text(type.label,
                             textAlign: TextAlign.center,
@@ -2176,34 +2154,6 @@ class _WorkoutTypeSelector extends StatelessWidget {
   }
 }
 
-class _WorkoutIcon extends StatelessWidget {
-  const _WorkoutIcon({required this.type, required this.selected});
-  final WorkoutType type;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = selected ? Colors.white : kTextLabel;
-    if (type == WorkoutType.boxing) {
-      return SizedBox(
-        width: 32, height: 19,
-        child: Stack(
-          children: [
-            Positioned(left: 0, top: 0,
-              child: Icon(Icons.sports_mma, size: 19, color: color)),
-            Positioned(right: 0, top: 0,
-              child: Transform(
-                alignment: Alignment.center,
-                transform: Matrix4.diagonal3Values(-1, 1, 1),
-                child: Icon(Icons.sports_mma, size: 19, color: color),
-              )),
-          ],
-        ),
-      );
-    }
-    return Icon(type.icon, size: 22, color: color);
-  }
-}
 
 // ── Post-workout summary ───────────────────────────────────────────────────────
 

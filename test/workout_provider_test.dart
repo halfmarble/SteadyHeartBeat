@@ -25,6 +25,8 @@ class _FakeWorkoutService extends WorkoutService {
   @override Future<void> stopWorkout() async {}
   @override Future<void> setAnnounceInterval(int seconds) async {}
   @override Future<void> setSaveToHealth(bool enabled) async {}
+  bool? lastUseImperial;
+  @override Future<void> setUseImperial(bool imperial) async { lastUseImperial = imperial; }
   @override Future<Map<String, dynamic>> checkAirPods() async =>
       {'connected': true, 'activeOnThisDevice': true, 'name': 'Test AirPods'};
   @override Future<bool> bindAirPods() async => true;
@@ -233,6 +235,19 @@ void main() {
       expect(cfg['restSecs'], 45);
       expect(cfg['totalRounds'], 8);
       expect(cfg['warnSecs'], 0);
+      provider.dispose();
+    });
+  });
+
+  group('unit preference reaches native (ascent cue)', () {
+    test('start pushes the imperial flag so the spoken ascent cue matches units',
+        () async {
+      final fake = _FakeWorkoutService();
+      final provider = await _makeProvider(workout: fake);
+      provider.setUseImperial(false); // metric
+      await provider.start();
+      expect(fake.lastUseImperial, false,
+          reason: 'native must hear the unit choice so "Climbed N meters/feet" matches');
       provider.dispose();
     });
 

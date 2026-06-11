@@ -6,6 +6,14 @@ Running log of confirmed bugs and their root cause. Newest first.
 
 ## 1. Ascent announced in meters even when units are set to Imperial
 
+**Status:** ✅ Fixed 2026-06-09. The unit preference is now pushed to native
+(`WorkoutService.setUseImperial` → `AppDelegate` → `WorkoutManager`, re-pushed at
+each workout start and on toggle). The spoken cue says **feet** when Imperial
+(milestones every +100 ft) and **meters** when Metric (every +50 m), so it matches
+the on-screen display. Regression-guarded by `test/workout_provider_test.dart`
+("unit preference reaches native"). The open question below was resolved as Imperial
+**feet** (matching the display), **not** miles — flag if you actually wanted miles.
+
 **Reported:** 2026-06-05 (heard during a real hike, app set to Imperial).
 
 **Symptom:** the spoken ascent milestone cue says "Climbed N meters" regardless of
@@ -41,6 +49,14 @@ Distance (horizontal) already rolls up to mi via `fmtDist`, `lib/utils.dart:1`.
 ---
 
 ## 2. Boxing icon is inconsistent — sometimes two gloves, sometimes one
+
+**Status:** ✅ Fixed 2026-06-09. Extracted one shared widget,
+`lib/widgets/workout_type_icon.dart` (`WorkoutTypeIcon`), that always renders boxing
+as the mirrored pair and every other type as its single icon. All sites now route
+through it — the three inline pair copies, the one-glove chart-dialog header, and
+the hardcoded boxing config-sheet header — and the bare-`sports_mma`/`_iconFor`
+mappings were deleted. One source of truth, guarded by
+`test/workout_type_icon_test.dart`.
 
 **Reported:** 2026-06-05. Intent: boxing should always show a mirrored **pair** of
 gloves (left + right); some screens show only one.

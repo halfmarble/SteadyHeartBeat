@@ -32,6 +32,7 @@ manage yourself (your iCloud account, system crash diagnostics).
 | Saving workouts to Apple Health | ⚙️ Optional — on by default, can be turned off |
 | Heart-rate values in device logs | ✅ Removed from release builds |
 | Exporting a copy of your own data | ⚙️ Only when you tap **Export My Data** |
+| Contributing an anonymized copy to research | ⚙️ Only when you tap **Anonymize for Research** |
 | Clipboard | ✅ Not used |
 | Share sheet | ⚙️ Used only for the export you start |
 | Siri / Spotlight / Handoff / App Groups / Widgets | ✅ Not used |
@@ -45,9 +46,9 @@ There is no networking code in the app, and none of its components contact a
 server. Its dependencies — `shared_preferences`, `provider`, `fl_chart`,
 `path_provider`, `wakelock_plus`, `url_launcher`, `share_plus`,
 `cupertino_icons` — are all local. `url_launcher` is used only to open the iOS
-Settings app and a static halfmarble web link in your browser; `share_plus` only
-presents the system share sheet when you tap **Export My Data** (section 9).
-Neither sends app data anywhere on its own.
+Settings app and a static halfmarble web link in your browser; and `share_plus`
+only presents the system share sheet when you tap **Export My Data** (section 9).
+None send app data anywhere.
 
 To keep it that way, an automated test (`test/data_privacy_test.dart`) checks
 the project's dependency list against a vetted allowlist and **fails the build**
@@ -129,29 +130,52 @@ completeness.
 
 Your data belongs to you, so the app lets you take it with you.
 **Preferences → Your Data → Export My Data** assembles everything stored on the
-device — your workout sessions and your health profile — into a single plaintext
-JSON file and hands it to the iOS share sheet, so you can save it to Files,
-AirDrop it, or send it wherever you like.
+device — your workout sessions and your health profile — into a single JSON file
+and hands it to the iOS share sheet, so you can save it to Files, AirDrop it, or
+send it wherever you like. It's written as a readable JSON copy of your own data,
+meant for you to use directly (open it in a spreadsheet, feed it to a script).
+Data-portability standards hand over readable files because the recipient is the
+owner, who already had cleartext access inside the app — so the file is yours to
+store somewhere you trust.
 
 This is the one place the app deliberately moves data *out* of its protected
 storage, and only ever when you tap the button. Two things worth knowing:
 
-- **The file is not encrypted.** It's a readable copy of your own data, meant for
-  you to use. Once you save it outside the app it's no longer under the app's
-  protection — it follows wherever you put it and your own device/cloud settings,
-  so keep it somewhere you trust. (Why not encrypt it? Handing you a locked copy
-  of your own data would either ship you the key too, or risk locking you out of
-  your own data if you lost a passphrase. Portability standards hand over readable
-  files for this reason.)
 - **It does not upload anywhere.** Export only opens the share sheet; the app still
   makes no network requests of its own. Where the copy goes next is entirely your
-  choice.
+  choice — once saved outside the app the file follows your own device/cloud
+  settings, so keep it somewhere you trust.
+- **On-device, your data is already encrypted at rest** by iOS Data Protection,
+  tied to your device passcode — *as long as you have a passcode set*. If your
+  iPhone has no passcode, iOS can't encrypt the storage. We don't add a second
+  encryption layer on the device itself because the app must keep writing your
+  workout in the background with the screen locked, and a "locked = unreadable"
+  scheme would break that mid-workout.
+
+### Contributing anonymized data to research
+
+The export action sheet has a third option, **Anonymize for Research…**, for
+optionally contributing to the open OpenBioenergyGauge project. Behind an explicit
+consent step, the app builds an **anonymized** copy *on this device* and shares it as
+a file — it does **not** upload anything; you choose where the file goes. What the
+anonymizer does (it's open and testable — `lib/services/donation_service.dart`,
+`test/donation_test.dart`):
+
+- **Only your workout heart-rate timelines** are included — no name, age, biological
+  sex, conditions, or original session times.
+- Each export gets a fresh random ID (UUID); each workout gets its own random ID.
+- Every workout's clock is shifted by a random amount within **±7 days**, so the file
+  can't be tied to you or to your daily schedule. The shift is constant within a
+  workout, so the *spacing* between beats is preserved (that's all the research needs)
+  — but the real times are gone.
+
+### Deleting everything
 
 The companion **Delete All Data** button on the same screen permanently erases your
 workout history and health profile from the device (your app settings — voice,
 units, intervals — are kept).
 
-Code: `lib/services/export_service.dart`,
+Code: `lib/services/export_service.dart`, `lib/services/donation_service.dart`,
 `lib/services/session_storage_service.dart`,
 `lib/services/health_profile_store.dart`, `lib/providers/workout_provider.dart`,
 `lib/screens/preferences_screen.dart`.

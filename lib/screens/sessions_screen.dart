@@ -7,6 +7,7 @@ import '../services/session_storage_service.dart';
 import '../providers/workout_provider.dart';
 import '../constants.dart';
 import '../utils.dart';
+import '../widgets/workout_type_icon.dart';
 import 'home_screen.dart' show BpmChart;
 
 // ── Sessions screen ───────────────────────────────────────────────────────────
@@ -168,15 +169,6 @@ class _SessionsScreenState extends State<SessionsScreen> {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-IconData _iconFor(WorkoutType type) => switch (type) {
-      WorkoutType.boxing  => Icons.sports_mma,
-      WorkoutType.cycling => Icons.directions_bike,
-      WorkoutType.running => Icons.directions_run,
-      WorkoutType.walking => Icons.directions_walk,
-      WorkoutType.hiking  => Icons.hiking,
-      WorkoutType.other   => Icons.fitness_center,
-    };
 
 // ── Session chart viewer (double-tap a session) ───────────────────────────────
 
@@ -439,7 +431,7 @@ class _SessionChartViewState extends State<_SessionChartView>
                 // Header doubles as a swipe-up dismiss handle.
                 _dragHandle(Row(
                   children: [
-                    Icon(_iconFor(widget.type), size: kIconSM, color: kTextMuted),
+                    WorkoutTypeIcon(type: widget.type, size: kIconSM, color: kTextMuted),
                     const SizedBox(width: kSpaceMD),
                     Text(widget.type.label,
                         style: const TextStyle(
@@ -549,7 +541,7 @@ class _SessionCard extends StatelessWidget {
           // stats row below. Deletion is swipe-to-delete (Dismissible wrapper).
           Row(
             children: [
-              _WorkoutIcon(type: type),
+              WorkoutTypeIcon(type: type, size: kIconMD, color: kTextMuted),
               const SizedBox(width: kSpaceLG),
               Text(type.label,
                   style: const TextStyle(
@@ -730,32 +722,6 @@ class _SessionSummary extends StatelessWidget {
   }
 }
 
-// ── Workout icon (boxing = mirrored pair, others = single icon) ───────────────
-
-class _WorkoutIcon extends StatelessWidget {
-  const _WorkoutIcon({required this.type});
-  final WorkoutType type;
-
-  @override
-  Widget build(BuildContext context) {
-    if (type == WorkoutType.boxing) {
-      return SizedBox(
-        width: 38, height: kIconMD,
-        child: Stack(children: [
-          Positioned(left: 0, top: 0,
-            child: const Icon(Icons.sports_mma, size: kIconMD, color: kTextMuted)),
-          Positioned(right: 0, top: 0,
-            child: Transform(
-              alignment: Alignment.center,
-              transform: Matrix4.diagonal3Values(-1, 1, 1),
-              child: const Icon(Icons.sports_mma, size: kIconMD, color: kTextMuted),
-            )),
-        ]),
-      );
-    }
-    return Icon(_iconFor(type), size: kIconMD, color: kTextMuted);
-  }
-}
 
 // ── Stat chip ─────────────────────────────────────────────────────────────────
 

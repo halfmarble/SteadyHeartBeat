@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../providers/workout_provider.dart';
 import '../services/workout_service.dart';
 import '../services/export_service.dart';
+import '../services/donation_service.dart';
 import '../constants.dart';
 import 'voice_screen.dart';
 
@@ -724,17 +725,105 @@ class _YourDataSectionState extends State<_YourDataSection> {
   bool _deleting = false;
 
   Future<void> _export() async {
+    // Let the owner choose a plaintext copy (usable anywhere) or an anonymized
+    // research donation. See DATA_PORTABILITY.md.
+    final choice = await showCupertinoModalPopup<String>(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('Export My Data'),
+        message: const Text(
+            'A copy of your sessions and health profile, readable anywhere. Or '
+            'contribute an anonymized copy to research.'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () => Navigator.pop(ctx, 'plain'),
+            child: const Text('Export a Copy'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () => Navigator.pop(ctx, 'donate'),
+            child: const Text('Anonymize for Research…'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    final origin = _shareOrigin();
+
+    if (choice == 'donate') {
+      await _donate(origin);
+      return;
+    }
+
     setState(() => _exporting = true);
-    // Anchor the iPad share popover to the screen centre (harmless on iPhone).
-    final size = MediaQuery.of(context).size;
-    final origin = Rect.fromCenter(
-        center: Offset(size.width / 2, size.height / 2), width: 0, height: 0);
-    final ok = await ExportService.exportToShareSheet(origin: origin);
+    final err = await ExportService.exportToShareSheet(origin: origin);
     if (!mounted) return;
     setState(() => _exporting = false);
-    if (!ok) {
+    if (err != null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Could not prepare your data for export. Please try again.'),
+      ));
+    }
+  }
+
+  /// A non-zero share-sheet anchor rect for this section. share_plus/iOS reject a
+  /// zero-size sharePositionOrigin even on iPhone, so anchor to the real on-screen
+  /// rect (fallback: a 1×1 rect at screen centre).
+  Rect _shareOrigin() {
+    final box = context.findRenderObject() as RenderBox?;
+    if (box != null && box.hasSize) {
+      return box.localToGlobal(Offset.zero) & box.size;
+    }
+    final size = MediaQuery.of(context).size;
+    return Rect.fromCenter(
+        center: Offset(size.width / 2, size.height / 2), width: 1, height: 1);
+  }
+
+  /// Builds and shares an anonymized, OpenBioenergyGauge-shaped research donation
+  /// after an explicit consent step. Nothing is uploaded — the user chooses where
+  /// the file goes. See [DonationService].
+  Future<void> _donate(Rect origin) async {
+    final ok = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Contribute anonymized data'),
+        content: const Text(
+          '\nThis creates a file with your workout heart-rate timelines only — no '
+          'name, age, sex, or conditions. Each session gets a random ID and its '
+          'clock is shifted by a random amount (±7 days), so it can\'t be traced '
+          'to you or to a daily schedule. Nothing is uploaded; you choose where to '
+          'send the file.',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Create File'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _exporting = true);
+    final err = await DonationService.shareDonation(origin: origin);
+    if (!mounted) return;
+    setState(() => _exporting = false);
+    if (err == 'empty') {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('No finished workouts to contribute yet.'),
+      ));
+    } else if (err != null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Could not prepare the anonymized file. Please try again.'),
       ));
     }
   }
@@ -781,9 +870,9 @@ class _YourDataSectionState extends State<_YourDataSection> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const Text(
-          'Your data is yours. Export a complete, unencrypted copy to keep or '
-          'share — it leaves the app\'s protected storage, so save it somewhere '
-          'you trust. Or erase everything stored on this device.',
+          'Your data is yours. Export a complete, plaintext copy to keep or '
+          'share — it leaves the app\'s protected storage. Or erase everything '
+          'stored on this device.',
           style: TextStyle(color: kTextSubtle, fontSize: kFontBase, height: 1.4),
         ),
         const SizedBox(height: 14),

@@ -71,8 +71,8 @@ one slipping in during future work, `test/data_privacy_test.dart` holds a
 ever lists a dependency not on it. The current allowlist: `flutter`,
 `cupertino_icons`, `shared_preferences`, `provider`, `fl_chart`, `path_provider`,
 `wakelock_plus`, `url_launcher`, `share_plus`. (`share_plus` is the most recent
-addition — vetted local-only, it presents the OS share sheet for the user's data
-export and has no network access of its own; it went on the list with that
+addition: it presents the OS share sheet for the user-initiated data export, vetted
+local-only with no network access of its own; it went on the list with that
 justification, exactly the process below.)
 
 **What to check when adding a dependency:**

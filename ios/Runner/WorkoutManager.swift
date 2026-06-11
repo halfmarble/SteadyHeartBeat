@@ -134,7 +134,9 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     private var _altRef: Double?                              // running reference for ascent
     private let _ascentThresholdMeters: Double = 1.0         // net rise before counting
     private var _lastAscentAnnounceMeters: Double = 0
-    private let _ascentAnnounceStepMeters: Double = 50       // announce every +50 m
+    private let _ascentAnnounceStepMeters: Double = 50       // metric: announce every +50 m
+    private let _ascentAnnounceStepFeet: Double = 100        // imperial: announce every +100 ft
+    private let _metersPerFoot: Double = 0.3048
 
 
     private override init() {
@@ -1072,6 +1074,15 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         _saveToHealth = enabled
     }
 
+    // Unit preference, pushed from Dart at workout start and on toggle (defaults
+    // to the shipped UI's Imperial). Only the spoken ascent cue consumes it —
+    // every on-screen value is formatted Dart-side via fmtElevation/fmtDist.
+    private var _useImperial = true
+
+    func setUseImperial(_ enabled: Bool) {
+        _useImperial = enabled
+    }
+
     func stopWorkout() {
         _stopAnnounceTimer()
         _stopRoundTimer()
@@ -1199,10 +1210,19 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
 
         heartRateEventSink?(["ascentMeters": _ascentMeters])
 
-        if _ascentMeters - _lastAscentAnnounceMeters >= _ascentAnnounceStepMeters {
-            _lastAscentAnnounceMeters =
-                (_ascentMeters / _ascentAnnounceStepMeters).rounded(.down) * _ascentAnnounceStepMeters
-            speak(text: "Climbed \(Int(_lastAscentAnnounceMeters)) meters")
+        // Milestone cue in the user's chosen unit. The step is a round number in
+        // that unit (every +50 m / +100 ft); _useImperial is pushed from Dart and
+        // read live so toggling units mid-workout takes effect on the next climb.
+        let step = _useImperial ? _ascentAnnounceStepFeet * _metersPerFoot
+                                 : _ascentAnnounceStepMeters
+        if _ascentMeters - _lastAscentAnnounceMeters >= step {
+            _lastAscentAnnounceMeters = (_ascentMeters / step).rounded(.down) * step
+            if _useImperial {
+                let feet = Int((_lastAscentAnnounceMeters / _metersPerFoot).rounded())
+                speak(text: "Climbed \(feet) feet")
+            } else {
+                speak(text: "Climbed \(Int(_lastAscentAnnounceMeters)) meters")
+            }
         }
     }
 
