@@ -227,6 +227,16 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool healthFetchPending = false;
   String? healthFetchError; // non-null when last fetch failed
 
+  // Independent progress/error state for the manual "Refresh from Apple Health"
+  // button, so it doesn't drive the authorize-access UI's spinner.
+  bool healthRefreshPending = false;
+  String? healthRefreshError;
+
+  /// Count of stored (completed) sessions. Drives enabling/disabling the
+  /// Export / Delete-All actions in Preferences. Refreshed at launch, after a
+  /// delete-all, and whenever the data section appears.
+  int sessionCount = 0;
+
   // Preferences
   // Selected announce voice. null identifier = "automatic": native picks the
   // best installed voice (Option A — premium > enhanced > default). voiceName is
@@ -474,6 +484,9 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     // Recover any in-progress workout that didn't get a clean save (app killed,
     // OOM, force-quit) by computing a summary from the last persisted snapshot.
     await _recoverOrphanSession();
+    // Seed the session count so the Export / Delete-All buttons start in the
+    // correct enabled/disabled state.
+    refreshSessionCount();
     // If we have no persisted health zones, try a silent HealthKit fetch now.
     // This works if the user previously granted HealthKit access; silently
     // no-ops if not yet authorized.
@@ -660,6 +673,50 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// Manually re-read everything we pull from HealthKit — the Apple Watch
+  /// metrics (HRV, resting HR, VO₂ max, body mass) plus the health profile
+  /// (age/sex/zones). Same reads as launch, but on an explicit user tap, so a
+  /// user looking at a stale value (e.g. a months-old VO₂ max) can force a fresh
+  /// read without relaunching. The tap is an explicit "use Apple Health" intent,
+  /// so it also clears manual overrides that Apple Health can fill (the metric
+  /// reverts to Auto). Uses its own [healthRefreshPending] /
+  /// [healthRefreshError] so it can show progress and surface a denied-access
+  /// message without disturbing the authorize-access section.
+  Future<void> refreshHealthData() async {
+    healthRefreshPending = true;
+    healthRefreshError = null;
+    notifyListeners();
+
+    final authorized = await _workout.requestAuthorization();
+    if (!authorized) {
+      healthRefreshPending = false;
+      healthRefreshError = 'Health access denied. Enable in Settings → Privacy → Health → SteadyHeartBeat.';
+      notifyListeners();
+      return;
+    }
+
+    await _tryFetchHealthProfile();
+    await _fetchRecentHRV();
+    await _fetchRestingHR();
+    await _fetchVO2Max();
+    await _fetchBodyMass();
+
+    // An explicit Refresh tap signifies intent: "use Apple Health now." So adopt
+    // the freshly-read values by dropping any manual override that Apple Health can
+    // replace — the metric reverts to Auto and shows the Apple Health value (rather
+    // than the manual value silently masking the refresh). Where Apple Health has
+    // nothing, the manual override stays, so we never wipe the user's only number
+    // (e.g. a VO₂ max typed in from another watch when Apple Health has none).
+    if (recentHrvMs != null) manualHrvMs = null;
+    if (recentRestingHrBpm != null) manualRestingHr = null;
+    if (recentVo2MaxMlPerKgMin != null) manualVo2Max = null;
+    if (autoBodyMassKg != null) manualWeightKg = null;
+    await _saveHealthProfile();
+
+    healthRefreshPending = false;
+    notifyListeners();
+  }
+
   /// Persists ALL personal health data — age, sex, self-reported conditions,
   /// manual biometric overrides, and the derived HR zones — to the
   /// backup-excluded [HealthProfileStore], NOT shared_preferences (which is
@@ -735,8 +792,16 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     manualVo2Max = null;
     manualRestingHr = null;
     manualWeightKg = null;
+    sessionCount = 0;
     _safeNotify();
     return removed;
+  }
+
+  /// Re-reads the number of stored sessions into [sessionCount] and notifies,
+  /// so the Export / Delete-All buttons enable/disable correctly.
+  Future<void> refreshSessionCount() async {
+    sessionCount = await SessionStorageService.count();
+    _safeNotify();
   }
 
   Future<void> start() async {

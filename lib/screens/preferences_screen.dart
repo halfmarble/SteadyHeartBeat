@@ -724,6 +724,14 @@ class _YourDataSectionState extends State<_YourDataSection> {
   bool _exporting = false;
   bool _deleting = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // Refresh on open so the Export / Delete-All buttons reflect sessions added
+    // or removed elsewhere (e.g. the Sessions screen) since launch.
+    widget.provider.refreshSessionCount();
+  }
+
   Future<void> _export() async {
     // Let the owner choose a plaintext copy (usable anywhere) or an anonymized
     // research donation. See DATA_PORTABILITY.md.
@@ -866,24 +874,32 @@ class _YourDataSectionState extends State<_YourDataSection> {
   @override
   Widget build(BuildContext context) {
     final busy = _exporting || _deleting;
+    final hasSessions = widget.provider.sessionCount > 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const Text(
-          'Your data is yours. Export a complete, plaintext copy to keep or '
+          'Your data is yours. Export a complete, readable copy to keep or '
           'share — it leaves the app\'s protected storage. Or erase everything '
           'stored on this device.',
           style: TextStyle(color: kTextSubtle, fontSize: kFontBase, height: 1.4),
         ),
+        if (!hasSessions) ...[
+          const SizedBox(height: 8),
+          const Text(
+            'No workouts recorded yet — finish a session to enable export and delete.',
+            style: TextStyle(color: kTextDim, fontSize: kFontCaption, height: 1.3),
+          ),
+        ],
         const SizedBox(height: 14),
         SizedBox(
           height: 44,
           child: FilledButton(
-            onPressed: busy ? null : _export,
+            onPressed: (busy || !hasSessions) ? null : _export,
             style: FilledButton.styleFrom(
               backgroundColor: kSurface,
               foregroundColor: kAccent,
-              side: const BorderSide(color: kAccent),
+              side: BorderSide(color: (busy || !hasSessions) ? kTextDim : kAccent),
               disabledBackgroundColor: kSurface,
               disabledForegroundColor: kTextDim,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -901,11 +917,11 @@ class _YourDataSectionState extends State<_YourDataSection> {
         SizedBox(
           height: 44,
           child: FilledButton(
-            onPressed: busy ? null : _confirmDelete,
+            onPressed: (busy || !hasSessions) ? null : _confirmDelete,
             style: FilledButton.styleFrom(
               backgroundColor: kSurface,
               foregroundColor: kAccent,
-              side: const BorderSide(color: kAccent),
+              side: BorderSide(color: (busy || !hasSessions) ? kTextDim : kAccent),
               disabledBackgroundColor: kSurface,
               disabledForegroundColor: kTextDim,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1271,9 +1287,11 @@ class _RestingMetricsSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Apple Watch values can go stale if the Watch isn\'t worn. Override any '
-          'of these manually — pick a value, or leave it on “Auto” to use Apple '
-          'Health. Manual values take precedence everywhere they\'re shown.',
+          'Apple Health values can go stale — if the Apple Watch isn\'t worn, or if '
+          'your fitness data comes from a different watch (Amazfit, Garmin, etc.) that '
+          'doesn\'t feed Apple Health. Override any of these manually — pick a value, '
+          'or leave it on “Apple Health” to use the live reading. Manual values take '
+          'precedence everywhere they\'re shown.',
           style: TextStyle(color: kTextSubtle, fontSize: kFontBase, height: 1.4),
         ),
         const SizedBox(height: 12),
@@ -1281,6 +1299,7 @@ class _RestingMetricsSection extends StatelessWidget {
           label: 'Resting HRV', unit: 'ms', min: 5, max: 200,
           autoValue: provider.recentHrvMs, autoDate: provider.recentHrvDate,
           manualValue: provider.manualHrvMs, onChanged: provider.setManualHrv,
+          staleHint: 'From another watch (Amazfit, Garmin…)? Scroll to enter it.',
         ),
         const SizedBox(height: 16),
         _MetricOverride(
@@ -1289,6 +1308,7 @@ class _RestingMetricsSection extends StatelessWidget {
           autoDate: provider.recentRestingHrDate,
           manualValue: provider.manualRestingHr,
           onChanged: provider.setManualRestingHr,
+          staleHint: 'From another watch (Amazfit, Garmin…)? Scroll to enter it.',
         ),
         const SizedBox(height: 16),
         _MetricOverride(
@@ -1297,7 +1317,46 @@ class _RestingMetricsSection extends StatelessWidget {
           autoDate: provider.recentVo2MaxDate,
           manualValue: provider.manualVo2Max,
           onChanged: provider.setManualVo2Max,
+          staleHint: 'From another watch (Amazfit, Garmin…)? Scroll to enter it.',
         ),
+        const SizedBox(height: 20),
+        const Text(
+          'Auto values come from Apple Health. The app reads them at launch — tap '
+          'to pull the latest now and use them (this switches any manual override '
+          'back to the Apple Health value, where one exists).',
+          style: TextStyle(color: kTextSubtle, fontSize: kFontCaption, height: 1.4),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 44,
+          width: double.infinity,
+          child: provider.healthRefreshPending
+              ? const Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: kAccent),
+                  ),
+                )
+              : FilledButton.icon(
+                  onPressed: () => provider.refreshHealthData(),
+                  icon: const Icon(CupertinoIcons.square_arrow_down, size: 18),
+                  label: const Text('Read from Apple Health'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: kSurface,
+                    foregroundColor: kAccent,
+                    side: const BorderSide(color: kAccent),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+        ),
+        if (provider.healthRefreshError != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            provider.healthRefreshError!,
+            style: const TextStyle(color: kAccent, fontSize: kFontCaption, height: 1.3),
+          ),
+        ],
       ],
     );
   }
@@ -1320,7 +1379,7 @@ class _WeightSection extends StatelessWidget {
       children: [
         const Text(
           'Used to estimate the energy of climbing — work against gravity '
-          '(mass × g × ascent). Leave on “Auto” to use your Apple Health weight.',
+          '(mass × g × ascent). Leave it on “Apple Health,” or scroll to set it manually.',
           style: TextStyle(color: kTextSubtle, fontSize: kFontBase, height: 1.4),
         ),
         const SizedBox(height: 12),
@@ -1354,6 +1413,7 @@ class _MetricOverride extends StatefulWidget {
     required this.autoDate,
     required this.manualValue,
     required this.onChanged,
+    this.staleHint,
   });
   final String label, unit;
   final int min, max;
@@ -1361,6 +1421,7 @@ class _MetricOverride extends StatefulWidget {
   final DateTime? autoDate;
   final double? manualValue;
   final ValueChanged<double?> onChanged;
+  final String? staleHint; // nudge under the wheel when the Auto value is missing/stale
 
   @override
   State<_MetricOverride> createState() => _MetricOverrideState();
@@ -1415,6 +1476,16 @@ class _MetricOverrideState extends State<_MetricOverride> {
     return 'Apple Health$age';
   }
 
+  // True when the Auto value is missing or stale (older than
+  // WorkoutProvider.kStaleMetricDays = 30) and there's no manual override — i.e.
+  // when we should nudge the user to enter it themselves (e.g. from another watch).
+  bool get _suggestManual {
+    if (widget.manualValue != null) return false;
+    if (widget.autoValue == null) return true;
+    final d = widget.autoDate;
+    return d != null && DateTime.now().difference(d).inDays > 30;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1447,10 +1518,11 @@ class _MetricOverrideState extends State<_MetricOverride> {
                 onSelectedItemChanged: _onChanged,
                 children: List<Widget>.generate(_count, (i) {
                   final isAuto = i == 0;
-                  // On Auto, show the value it resolves to, e.g. "Auto (55)".
+                  // The first row uses the live Apple Health value, e.g.
+                  // "Apple Health (55)"; "(none)" when Apple Health has no value.
                   final autoText = widget.autoValue != null
-                      ? 'Auto (${widget.autoValue!.round()})'
-                      : 'Auto';
+                      ? 'Apple Health (${widget.autoValue!.round()})'
+                      : 'Apple Health (none)';
                   return Center(
                     child: Text(
                       isAuto ? autoText : '${i - 1 + widget.min} ${widget.unit}',
@@ -1463,6 +1535,14 @@ class _MetricOverrideState extends State<_MetricOverride> {
               ),
             ),
           ),
+          if (_suggestManual && widget.staleHint != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              widget.staleHint!,
+              style: const TextStyle(
+                  color: kZone3, fontSize: kFontCaption, height: 1.3),
+            ),
+          ],
         ],
       ),
     );

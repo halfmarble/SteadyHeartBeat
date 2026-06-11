@@ -89,6 +89,26 @@ class _CapturingWorkoutService extends _FakeWorkoutService {
   }
 }
 
+/// Capturing service that reports no HealthKit profile, so max HR stays null —
+/// for the zone-derivation tests.
+class _NoHealthProfileWorkoutService extends _CapturingWorkoutService {
+  @override
+  Future<Map<String, dynamic>?> getHealthProfile() async => {'available': false};
+}
+
+/// Reports a resting HR from Apple Health, for the refresh-adopts-Apple-Health test.
+class _RestingHrWorkoutService extends _FakeWorkoutService {
+  @override
+  Future<Map<String, dynamic>?> getRestingHR() async =>
+      {'bpm': 62.0, 'timestamp': 1700000000.0};
+}
+
+/// Denies HealthKit authorization, for the denied-refresh test.
+class _DeniedAuthWorkoutService extends _FakeWorkoutService {
+  @override
+  Future<bool> requestAuthorization() async => false;
+}
+
 class _FakeTtsService extends TtsService {
   final List<String> spoken = [];
   @override Future<void> init() async {}
@@ -267,6 +287,121 @@ void main() {
       expect(provider.currentRound, 2);
       expect(provider.roundTotal, 12);
       expect(provider.roundRemaining, 128);
+      provider.dispose();
+    });
+  });
+
+  // ── Refresh adopts Apple Health ──────────────────────────────────────────────
+
+  group('refresh from Apple Health', () {
+    test('clears a manual resting HR and adopts the Apple Health value', () async {
+      final fake = _RestingHrWorkoutService();
+      final provider = await _makeProvider(workout: fake);
+      await provider.initialized; // let _loadPrefs finish so it can't clobber the manual set
+      provider.setManualRestingHr(58);
+      await Future<void>.delayed(Duration.zero);
+      expect(provider.manualRestingHr, 58);
+      expect(provider.effectiveRestingHrBpm, 58); // manual wins before refresh
+
+      await provider.refreshHealthData();
+
+      expect(provider.manualRestingHr, isNull,
+          reason: 'an explicit refresh = adopt Apple Health');
+      expect(provider.effectiveRestingHrBpm, 62); // now the Apple Health value
+      provider.dispose();
+    });
+
+    test('keeps a manual value when Apple Health has nothing to replace it', () async {
+      final fake = _FakeWorkoutService(); // all health getters return null
+      final provider = await _makeProvider(workout: fake);
+      await provider.initialized; // let _loadPrefs finish so it can't clobber the manual set
+      provider.setManualVo2Max(48);
+      await Future<void>.delayed(Duration.zero);
+
+      await provider.refreshHealthData();
+
+      expect(provider.manualVo2Max, 48,
+          reason: 'no Apple Health VO₂ max to adopt — never wipe the only number');
+      provider.dispose();
+    });
+  });
+
+  // ── Release hardening (tiers 2–3) ────────────────────────────────────────────
+
+  group('release hardening', () {
+    test('HealthKit denied: refresh surfaces an error and keeps the manual value',
+        () async {
+      final fake = _DeniedAuthWorkoutService();
+      final provider = await _makeProvider(workout: fake);
+      await provider.initialized;
+      provider.setManualVo2Max(48);
+      await Future<void>.delayed(Duration.zero);
+
+      await provider.refreshHealthData();
+
+      expect(provider.healthRefreshError, isNotNull,
+          reason: 'denied auth → an actionable error, not a silent no-op');
+      expect(provider.manualVo2Max, 48,
+          reason: 'a denied refresh must not wipe the manual override');
+      provider.dispose();
+    });
+
+    test('a metric older than 30 days reads as stale (drives the hint)', () async {
+      final provider = await _makeProvider();
+      await provider.initialized;
+      provider.recentVo2MaxMlPerKgMin = 45;
+      provider.recentVo2MaxDate = DateTime.now().subtract(const Duration(days: 145));
+      expect(provider.vo2Stale, true);
+      provider.recentVo2MaxDate = DateTime.now().subtract(const Duration(days: 5));
+      expect(provider.vo2Stale, false);
+      provider.setManualVo2Max(50); // a manual override is never "stale"
+      await Future<void>.delayed(Duration.zero);
+      expect(provider.vo2Stale, false);
+      provider.dispose();
+    });
+
+    test('old-version prefs load cleanly (forward-compat)', () async {
+      SharedPreferences.setMockInitialValues({
+        'boxingRoundsEnabled': true,
+        'roundSecs': 120,
+        'announceInterval': 30,
+      });
+      final provider =
+          WorkoutProvider(workout: _FakeWorkoutService(), tts: _FakeTtsService());
+      await provider.initialized;
+      // Pre-existing prefs survive the upgrade.
+      expect(provider.boxingRoundsEnabled, true);
+      expect(provider.roundSecs, 120);
+      provider.dispose();
+    });
+  });
+
+  // ── Zone / max-HR derivation (load-bearing math) ─────────────────────────────
+
+  group('zone / max-HR derivation', () {
+    test('age derives max HR, the five zones, and the danger threshold', () async {
+      // No-profile fake so the HealthKit DOB can't override the manual age.
+      final provider = await _makeProvider(workout: _NoHealthProfileWorkoutService());
+      await provider.initialized;
+      await provider.setManualAge(50);
+      expect(provider.maxHeartRate, 173); // round(208 − 0.7·50)
+      expect(provider.zone1End, 87); //  50%
+      expect(provider.zone2Start, 104); // 60%
+      expect(provider.zone3Start, 121); // 70%
+      expect(provider.zone4Start, 138); // 80%
+      expect(provider.zone5Start, 156); // 90%
+      expect(provider.dangerZoneThreshold, 156); // = zone5Start (90%)
+      provider.dispose();
+    });
+
+    test('no age → null zones and the default danger fallback (175)', () async {
+      final provider = await _makeProvider(workout: _NoHealthProfileWorkoutService());
+      await provider.initialized;
+      await provider.setManualAge(null); // re-fetch finds no DOB → stays cleared
+      expect(provider.maxHeartRate, isNull);
+      expect(provider.zone1End, isNull);
+      expect(provider.zone5Start, isNull);
+      expect(provider.dangerZoneThreshold, 175); // kDefaultDangerBpm
       provider.dispose();
     });
   });
