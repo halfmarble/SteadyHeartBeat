@@ -46,6 +46,15 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
         actions: [
+          // Trends hub — only in a build with the SHB+ module (the free core has
+          // no chart; gating here keeps it from advertising a dead end).
+          if (context.read<WorkoutProvider>().plus.available)
+            IconButton(
+              tooltip: 'Trends',
+              icon: const Icon(CupertinoIcons.chart_bar_square),
+              onPressed: () =>
+                  context.read<WorkoutProvider>().plus.openTrends(context, ''),
+            ),
           IconButton(
             tooltip: 'Session history',
             icon: const Icon(CupertinoIcons.clock),
@@ -946,6 +955,9 @@ class _PreWorkoutMetrics extends StatelessWidget {
     // unknown — same spirit as the old single fixed thresholds.
     final normAge = provider.healthAge ?? 45;
     final normFemale = provider.effectiveSex == 'female';
+    // The daily-trends chart is an SHB+ surface; only attach the tap-to-trends
+    // affordance in a build that has the module (free core has no chart).
+    final trends = provider.plus.available;
 
     // HRV — SDNN graded against age-banded norms (declines with age).
     if (provider.effectiveHrvMs != null) {
@@ -968,8 +980,8 @@ class _PreWorkoutMetrics extends StatelessWidget {
         age: ageLabel(manual, provider.recentHrvDate),
         ageColor: ageTint(manual, provider.hrvStale),
         infoKey: overnight ? 'bedHrv' : 'restingHrv',
-        // Tap the bed HRV value → daily-trends chart (SHB+; teaser when locked).
-        onValueTap: overnight
+        // Tap the bed HRV value → daily-trends hub (SHB+; teaser when locked).
+        onValueTap: (overnight && trends)
             ? () => provider.plus.openTrends(context, 'bedHrv')
             : null,
       ));
@@ -995,6 +1007,9 @@ class _PreWorkoutMetrics extends StatelessWidget {
         age: ageLabel(manual, provider.recentRestingHrDate),
         ageColor: ageTint(manual, provider.restingHrStale),
         infoKey: overnight ? 'bedHr' : 'restingHr',
+        onValueTap: (overnight && trends)
+            ? () => provider.plus.openTrends(context, 'bedHr')
+            : null,
       ));
     }
 
@@ -1017,6 +1032,8 @@ class _PreWorkoutMetrics extends StatelessWidget {
         age: ageLabel(manual, provider.recentVo2MaxDate),
         ageColor: ageTint(manual, provider.vo2Stale),
         infoKey: 'vo2max',
+        onValueTap:
+            trends ? () => provider.plus.openTrends(context, 'vo2max') : null,
       ));
     }
 
@@ -1119,7 +1136,16 @@ class _Metric extends StatelessWidget {
             : GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: onValueTap,
-                child: valueText,
+                // A small chart glyph makes the value visibly tappable (→ the
+                // daily-trends hub) rather than relying on an invisible tap.
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    valueText,
+                    const SizedBox(width: 4),
+                    Icon(Icons.show_chart, size: 13, color: color.withAlpha(0xAA)),
+                  ],
+                ),
               ),
         if (age.isNotEmpty)
           Text(age, style: TextStyle(color: ageColor, fontSize: kFontSM)),

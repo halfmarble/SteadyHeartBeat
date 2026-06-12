@@ -1577,38 +1577,86 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         healthStore.execute(query)
     }
 
-    // MARK: - Bed HRV daily history (SHB+ trends chart)
+    // MARK: - Readiness daily history (SHB+ trends hub)
 
-    // One median-SDNN point per qualifying night over the last `days`, oldest
-    // first, as [{date: out-of-bed epoch, ms, count}]. Reuses the same night
-    // selection (≥3 h sleep within normal hours) as today's bed HRV, then runs a
-    // single SDNN query across the whole span and buckets the samples per night.
-    func getBedHrvHistory(days: Int, completion: @escaping ([[String: Any]]) -> Void) {
+    // Per-night history over the last `days` for the trends hub, as
+    //   { "hrv": [{date, bedMs, sleepMs?}], "hr": [{date, bpm}], "vo2": [{date, value}] }
+    // bedMs = median SDNN over the whole in-bed window; sleepMs = median SDNN over
+    // the asleep segments only (the lightly-shaded overlay); bpm = mean HR over
+    // the in-bed window. Nights use the same ≥3 h / normal-hours selection as
+    // today's reading. VO₂ max is independent of sleep, so it's always returned.
+    func getReadinessHistory(days: Int, completion: @escaping ([String: Any]) -> Void) {
         _scoredNights(days: days) { [weak self] scored in
-            guard let self = self else { DispatchQueue.main.async { completion([]) }; return }
+            guard let self = self else { DispatchQueue.main.async { completion([:]) }; return }
             let nights = OvernightMath.qualifyingNights(scored)
-            guard let first = nights.first, let last = nights.last else {
-                DispatchQueue.main.async { completion([]) }
-                return
-            }
-            self._hrvSamples(start: first.sleepOnset, end: last.bedEnd) { samples in
-                let unit = HKUnit(from: "ms")
-                let pts = samples.map { (date: $0.startDate, ms: $0.quantity.doubleValue(for: unit)) }
-                var out: [[String: Any]] = []
-                for night in nights {
-                    let vals = pts.filter { $0.date >= night.sleepOnset && $0.date < night.bedEnd }
-                        .map { $0.ms }
-                    if let median = OvernightMath.median(vals) {
-                        out.append([
-                            "date": night.bedEnd.timeIntervalSince1970,
-                            "ms": median,
-                            "count": vals.count,
-                        ])
+            self._vo2History(days: days) { vo2 in
+                guard let first = nights.first, let last = nights.last else {
+                    DispatchQueue.main.async { completion(["hrv": [], "hr": [], "vo2": vo2]) }
+                    return
+                }
+                self._hrvSamples(start: first.sleepOnset, end: last.bedEnd) { sdnn in
+                    let msUnit = HKUnit(from: "ms")
+                    let sdnnPts = sdnn.map { (date: $0.startDate, ms: $0.quantity.doubleValue(for: msUnit)) }
+                    var hrv: [[String: Any]] = []
+                    for night in nights {
+                        let bedVals = sdnnPts.filter { $0.date >= night.sleepOnset && $0.date < night.bedEnd }.map { $0.ms }
+                        guard let bed = OvernightMath.median(bedVals) else { continue }
+                        var e: [String: Any] = ["date": night.bedEnd.timeIntervalSince1970, "bedMs": bed]
+                        let sleepVals = sdnnPts.filter { night.isAsleep(at: $0.date) }.map { $0.ms }
+                        if let sleep = OvernightMath.median(sleepVals) { e["sleepMs"] = sleep }
+                        hrv.append(e)
+                    }
+                    self._heartRateAcross(nights: nights) { hrSamples in
+                        let bpmUnit = HKUnit.count().unitDivided(by: .minute())
+                        let hrPts = hrSamples.map { (date: $0.startDate, bpm: $0.quantity.doubleValue(for: bpmUnit)) }
+                        var hr: [[String: Any]] = []
+                        for night in nights {
+                            let vals = hrPts.filter { $0.date >= night.sleepOnset && $0.date < night.bedEnd }.map { $0.bpm }
+                            if let mean = OvernightMath.mean(vals) {
+                                hr.append(["date": night.bedEnd.timeIntervalSince1970, "bpm": mean])
+                            }
+                        }
+                        DispatchQueue.main.async { completion(["hrv": hrv, "hr": hr, "vo2": vo2]) }
                     }
                 }
-                DispatchQueue.main.async { completion(out) }
             }
         }
+    }
+
+    // VO₂ max samples over the last `days`, oldest first, as [{date, value}].
+    private func _vo2History(days: Int, _ completion: @escaping ([[String: Any]]) -> Void) {
+        let type = HKQuantityType(.vo2Max)
+        let end = Date()
+        let start = end.addingTimeInterval(-Double(max(1, days)) * 24 * 3600)
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: true)
+        let unit = HKUnit.literUnit(with: .milli)
+            .unitDivided(by: HKUnit.gramUnit(with: .kilo).unitMultiplied(by: .minute()))
+        let query = HKSampleQuery(sampleType: type, predicate: predicate,
+                                  limit: HKObjectQueryNoLimit, sortDescriptors: [sort]) { _, samples, _ in
+            let out = (samples as? [HKQuantitySample] ?? []).map {
+                ["date": $0.endDate.timeIntervalSince1970, "value": $0.quantity.doubleValue(for: unit)]
+            }
+            completion(out)
+        }
+        healthStore.execute(query)
+    }
+
+    // Heart-rate samples restricted to the in-bed windows of `nights` (an OR of
+    // per-night predicates), so we don't pull every daytime/workout HR sample.
+    private func _heartRateAcross(nights: [OvernightMath.Night],
+                                  _ completion: @escaping ([HKQuantitySample]) -> Void) {
+        guard !nights.isEmpty else { completion([]); return }
+        let preds = nights.map {
+            HKQuery.predicateForSamples(withStart: $0.sleepOnset, end: $0.bedEnd, options: [.strictStartDate])
+        }
+        let predicate = NSCompoundPredicate(orPredicateWithSubpredicates: preds)
+        let type = HKQuantityType(.heartRate)
+        let query = HKSampleQuery(sampleType: type, predicate: predicate,
+                                  limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, _ in
+            completion(samples as? [HKQuantitySample] ?? [])
+        }
+        healthStore.execute(query)
     }
 
     // Raw SDNN samples over [start, end]; averaging is done by OvernightMath.
@@ -2001,10 +2049,22 @@ enum OvernightMath {
         let end: Date
         let isAsleep: Bool
     }
+    struct Interval: Equatable {
+        let start: Date
+        let end: Date
+    }
     struct Night: Equatable {
         let sleepOnset: Date     // first asleep start (a Night always has sleep)
         let bedEnd: Date         // last segment end — out of bed
         let asleepSeconds: Double // total asleep time (overlaps merged)
+        // The asleep segments, for the asleep-only "sleep HRV" series (bed HRV
+        // uses the whole [sleepOnset, bedEnd] window instead).
+        let asleepIntervals: [Interval]
+
+        /// True when [date] falls inside any asleep segment of this night.
+        func isAsleep(at date: Date) -> Bool {
+            asleepIntervals.contains { date >= $0.start && date < $0.end }
+        }
     }
     struct ScoredNight: Equatable {
         let night: Night
@@ -2044,7 +2104,8 @@ enum OvernightMath {
         return Night(
             sleepOnset: onset,
             bedEnd: cluster.map { $0.end }.max() ?? onset,
-            asleepSeconds: unionDuration(asleep.map { (start: $0.start, end: $0.end) }))
+            asleepSeconds: unionDuration(asleep.map { (start: $0.start, end: $0.end) }),
+            asleepIntervals: asleep.map { Interval(start: $0.start, end: $0.end) })
     }
 
     /// Total covered duration of a set of intervals, with overlaps merged.

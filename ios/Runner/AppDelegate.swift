@@ -133,9 +133,9 @@ import AVFoundation
                     result($0)
                 }
 
-            case "getBedHrvHistory":
+            case "getReadinessHistory":
                 let days = (call.arguments as? [String: Any])?["days"] as? Int ?? 30
-                WorkoutManager.shared.getBedHrvHistory(days: days) { result($0) }
+                WorkoutManager.shared.getReadinessHistory(days: days) { result($0) }
 
             case "setAnnounceInterval":
                 let seconds = (call.arguments as? [String: Any])?["seconds"] as? Int ?? 15

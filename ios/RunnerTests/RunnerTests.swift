@@ -19,7 +19,8 @@ final class OvernightMathTests: XCTestCase {
         -> OvernightMath.ScoredNight {
         OvernightMath.ScoredNight(
             night: OvernightMath.Night(
-                sleepOnset: t(0), bedEnd: t(bedEndMin), asleepSeconds: asleepH * 3600),
+                sleepOnset: t(0), bedEnd: t(bedEndMin), asleepSeconds: asleepH * 3600,
+                asleepIntervals: []),
             midpointTOD: midTODh * 3600)
     }
 
@@ -58,6 +59,22 @@ final class OvernightMathTests: XCTestCase {
     func testNightNilWhenNoAsleepSegment() {
         // Only inBed recorded (iPhone-only, no stage classification).
         XCTAssertNil(OvernightMath.night(from: [seg(0, 100, asleep: false)]))
+    }
+
+    func testNightIsAsleepMarksOnlyAsleepSpans() {
+        // asleep 15–75 inside an in-bed 0–80 window: a sample at 40 is asleep,
+        // one at 5 (awake-in-bed) and one at 78 (awake-in-bed) are not. This is
+        // exactly the sleep-HRV bucketing.
+        let n = OvernightMath.night(from: [
+            seg(0, 15, asleep: false),
+            seg(15, 75, asleep: true),
+            seg(75, 80, asleep: false),
+        ])!
+        XCTAssertTrue(n.isAsleep(at: t(40)))
+        XCTAssertFalse(n.isAsleep(at: t(5)))
+        XCTAssertFalse(n.isAsleep(at: t(78)))
+        // Boundary is half-open: exactly at the segment end is not asleep.
+        XCTAssertFalse(n.isAsleep(at: t(75)))
     }
 
     // ── unionDuration (no double-counting across overlapping sources) ────────────
