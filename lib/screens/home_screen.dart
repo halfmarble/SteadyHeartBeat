@@ -17,6 +17,7 @@ import 'sessions_screen.dart';
 import '../utils.dart';
 import '../build_info.dart';
 import '../widgets/workout_type_icon.dart';
+import '../widgets/metric_explainer.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -35,8 +36,11 @@ class HomeScreen extends StatelessWidget {
               style: TextStyle(fontSize: kFontStat, fontWeight: FontWeight.w600, letterSpacing: 0.5),
             ),
             const SizedBox(width: 6),
+            // "+" marks a build with the SHB+ module compiled in, so an open
+            // (free-core) install and a plus install of the same build number
+            // are distinguishable at a glance.
             Text(
-              'b$kBuildNumber',
+              'b$kBuildNumber${context.read<WorkoutProvider>().plus.available ? '+' : ''}',
               style: const TextStyle(fontSize: 10, color: Colors.white54, fontWeight: FontWeight.w400),
             ),
           ],
@@ -951,14 +955,19 @@ class _PreWorkoutMetrics extends StatelessWidget {
               : ms >= hrvB.moderate ? kZone3
               : kAccent;
       final manual = provider.manualHrvMs != null;
+      // An auto value averaged over last night's whole in-bed span is the
+      // cleaner resting reading — label it "bed HRV". A manual override or a
+      // single-sample fallback stays the generic "resting HRV".
+      final overnight = !manual && provider.hrvSource == 'bed';
       metrics.add(_Metric(
-        label: 'resting HRV',
+        label: overnight ? 'bed HRV' : 'resting HRV',
         prefix: 'HRV',
         value: ms.round().toString(),
         unit: 'ms',
         color: c,
         age: ageLabel(manual, provider.recentHrvDate),
         ageColor: ageTint(manual, provider.hrvStale),
+        infoKey: overnight ? 'bedHrv' : 'restingHrv',
       ));
     }
 
@@ -970,14 +979,18 @@ class _PreWorkoutMetrics extends StatelessWidget {
               : bpm < 85 ? kZone3
               : kAccent;
       final manual = provider.manualRestingHr != null;
+      // An auto value averaged over last night's whole in-bed span is labelled
+      // "bed HR"; a manual override or single-sample fallback stays "resting HR".
+      final overnight = !manual && provider.restingHrSource == 'bed';
       metrics.add(_Metric(
-        label: 'resting HR',
+        label: overnight ? 'bed HR' : 'resting HR',
         prefix: '❤',
         value: bpm.round().toString(),
         unit: 'bpm',
         color: c,
         age: ageLabel(manual, provider.recentRestingHrDate),
         ageColor: ageTint(manual, provider.restingHrStale),
+        infoKey: overnight ? 'bedHr' : 'restingHr',
       ));
     }
 
@@ -999,6 +1012,7 @@ class _PreWorkoutMetrics extends StatelessWidget {
         color: c,
         age: ageLabel(manual, provider.recentVo2MaxDate),
         ageColor: ageTint(manual, provider.vo2Stale),
+        infoKey: 'vo2max',
       ));
     }
 
@@ -1034,17 +1048,42 @@ class _Metric extends StatelessWidget {
     required this.color,
     required this.age,
     this.ageColor = kTextFaint,
+    this.infoKey,
   });
   final String label, prefix, value, unit, age;
   final Color color;
   final Color ageColor;
+  // Key into kMetricExplainers; null = no ⓘ affordance. The ⓘ is a distinct
+  // tap target (the explainer), separate from any future tap-to-chart entry.
+  final String? infoKey;
 
   @override
   Widget build(BuildContext context) {
+    const labelStyle =
+        TextStyle(color: kTextDim, fontSize: kFontSM, letterSpacing: 0.4);
+    final Widget labelRow = infoKey == null
+        ? Text(label, style: labelStyle)
+        : GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => showMetricExplainer(context, infoKey!),
+            child: Padding(
+              // A little vertical padding turns the thin label into an easier
+              // tap target; every chip carries an ⓘ so they stay row-aligned.
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(label, style: labelStyle),
+                  const SizedBox(width: 3),
+                  const Icon(CupertinoIcons.info_circle,
+                      size: 12, color: kTextDim),
+                ],
+              ),
+            ),
+          );
     return Column(
       children: [
-        Text(label,
-            style: const TextStyle(color: kTextDim, fontSize: kFontSM, letterSpacing: 0.4)),
+        labelRow,
         const SizedBox(height: 4),
         RichText(
           text: TextSpan(children: [

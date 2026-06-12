@@ -1,7 +1,7 @@
 # Defensive Publication — Prior Art Disclosure
 
 **Title:** Consumer earbud as a closed-loop biometric sensor and ambient feedback device for exercise support
-**Author / discloser:** halfmarble LLC (gerard ziemski, Cofounder | Bioenergetics OS Architect)
+**Author / discloser:** Halfmarble LLC (gerard ziemski, Cofounder | Bioenergetics OS Architect)
 **Effective publication date:** 2026-06-04 (the date this document first became publicly accessible)
 **Status:** Defensive publication. The methods and techniques described herein are dedicated to the public domain (see *Dedication*, below).
 **Permanent archive (DOI):** <https://doi.org/10.5281/zenodo.20510077>
@@ -22,7 +22,7 @@ This dedication applies **only to the methods, techniques, and system architectu
 
 - **Does NOT** license, assign, or open the SteadyHeartBeat **source code**. The source code is governed separately by its own license file (`LICENSE`). Changing or replacing that license at any time does not affect this disclosure, and this disclosure does not affect that license.
 - **Does NOT** affect the **SteadyHeartBeat application** as a product — its distribution, pricing, availability, App Store presence, or any commercial terms. Those remain entirely at halfmarble's discretion.
-- **Does NOT** waive any **trademark, brand, trade dress, or copyright** held by halfmarble LLC. `halfmarble`, `SteadyHeartBeat`, and related marks remain the property of halfmarble LLC.
+- **Does NOT** waive any **trademark, brand, trade dress, or copyright** held by Halfmarble LLC. `halfmarble`, `SteadyHeartBeat`, and related marks remain the property of Halfmarble LLC.
 - **Does NOT** dedicate any method not explicitly described here. Methods halfmarble has chosen to retain (including any not yet implemented or disclosed) are outside the scope of this document and are unaffected by it.
 
 In short: the **ideas in this file** are public-domain prior art; the **code** is licensed separately; the **app and brand** are halfmarble's. Each is an independent layer, and a future change to any one of them leaves the others intact.
@@ -58,10 +58,10 @@ Enabling detail:
 
 ## Dedication to the public domain (CC0)
 
-To the extent permitted by law, halfmarble LLC dedicates the **methods and techniques described in this document** to the **public domain** under the [Creative Commons CC0 1.0 Universal Public Domain Dedication](https://creativecommons.org/publicdomain/zero/1.0/). halfmarble waives all patent and other rights it may hold in those described methods to the extent necessary to ensure they remain free for anyone to practice.
+To the extent permitted by law, Halfmarble LLC dedicates the **methods and techniques described in this document** to the **public domain** under the [Creative Commons CC0 1.0 Universal Public Domain Dedication](https://creativecommons.org/publicdomain/zero/1.0/). halfmarble waives all patent and other rights it may hold in those described methods to the extent necessary to ensure they remain free for anyone to practice.
 
 This dedication is irrevocable as to the methods described above. It does not extend to anything outside the *Scope* section.
 
 ---
 
-*halfmarble LLC — [halfmarble.com](https://halfmarble.com) — privacy@halfmarble.com*
+*Halfmarble LLC — [halfmarble.com](https://halfmarble.com) — privacy@halfmarble.com*

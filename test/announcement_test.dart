@@ -29,7 +29,7 @@ class FakeTtsService extends TtsService {
   @override Future<void> dispose() async {}
 
   @override
-  Future<void> speak(String text) async {
+  Future<void> speak(String text, {bool force = false}) async {
     spoken.add(text);
   }
 }
@@ -46,7 +46,7 @@ class SlowFakeTtsService extends TtsService {
   @override Future<void> dispose() async {}
 
   @override
-  Future<void> speak(String text) async {
+  Future<void> speak(String text, {bool force = false}) async {
     if (_busy) return; // mirrors the real _busy guard
     _busy = true;
     try {

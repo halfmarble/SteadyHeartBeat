@@ -9,6 +9,7 @@ import '../services/export_service.dart';
 import '../services/donation_service.dart';
 import '../constants.dart';
 import 'voice_screen.dart';
+import 'import_health_screen.dart';
 
 class PreferencesScreen extends StatelessWidget {
   const PreferencesScreen({super.key});
@@ -32,56 +33,54 @@ class PreferencesScreen extends StatelessWidget {
         builder: (context, provider, _) => ListView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           children: [
-            _SectionHeader(title: 'VOICE & ANNOUNCEMENTS'),
-            const SizedBox(height: 8),
             _VoicePrefsEntry(provider: provider),
+            const SizedBox(height: 12),
+            _NavRow(
+              icon: CupertinoIcons.person,
+              title: 'You & your body',
+              subtitle: 'Age, sex, weight, conditions & resting metrics',
+              onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const _BodyScreen())),
+            ),
+            const SizedBox(height: 12),
+            _NavRow(
+              icon: CupertinoIcons.heart,
+              title: 'Apple Health',
+              subtitle: 'Access, and saving workouts to Health',
+              onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const _AppleHealthScreen())),
+            ),
+            const SizedBox(height: 12),
+            _NavRow(
+              icon: CupertinoIcons.bell,
+              title: 'Alerts',
+              subtitle: 'Danger zone & background alerts',
+              onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const _AlertsScreen())),
+            ),
+            const SizedBox(height: 12),
+            // SHB+ module — absent in the free core / while the upgrade is locked.
+            if (provider.plus.preferencesSection(context) != null) ...[
+              _NavRow(
+                icon: CupertinoIcons.timer,
+                title: 'HR-gated protocols (SHB+)',
+                subtitle: 'Warm-up, recovery-gated rest & cool-down',
+                onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const _GateProtocolsScreen())),
+              ),
+              const SizedBox(height: 12),
+            ],
+            _NavRow(
+              icon: CupertinoIcons.lock_shield,
+              title: 'Your data',
+              subtitle: 'Export, delete, or donate to research',
+              onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const _DataScreen())),
+            ),
             const SizedBox(height: 32),
             _SectionHeader(title: 'UNITS'),
             const SizedBox(height: 8),
             _UnitsSelector(provider: provider),
-            const SizedBox(height: 32),
-            _SectionHeader(title: 'HEALTH CONDITIONS'),
-            const SizedBox(height: 8),
-            _HealthConditionsSection(provider: provider),
-            const SizedBox(height: 32),
-            // HealthKit access — powers age/DOB, weight, and resting metrics below.
-            _HealthAuthSection(provider: provider),
-            const SizedBox(height: 32),
-            _SectionHeader(title: 'APPLE HEALTH'),
-            const SizedBox(height: 12),
-            _AppleHealthSection(provider: provider),
-            const SizedBox(height: 32),
-            _SectionHeader(title: 'DANGER ZONE'),
-            const SizedBox(height: 8),
-            const Text(
-              'We alert you when your heart rate gets dangerously high. '
-              'The threshold is 90% of your max heart rate, calculated from your age.',
-              style: TextStyle(color: kTextSubtle, fontSize: kFontBase, height: 1.4),
-            ),
-            const SizedBox(height: 14),
-            _AgePickerSection(provider: provider),
-            const SizedBox(height: 16),
-            _SexPickerSection(provider: provider),
-            const SizedBox(height: 32),
-            _SectionHeader(title: 'WEIGHT'),
-            const SizedBox(height: 8),
-            _WeightSection(provider: provider),
-            const SizedBox(height: 32),
-            _SectionHeader(title: 'RESTING METRICS'),
-            const SizedBox(height: 8),
-            _RestingMetricsSection(provider: provider),
-            const SizedBox(height: 32),
-            _SectionHeader(title: 'BACKGROUND ALERTS'),
-            const SizedBox(height: 8),
-            const _NotificationsSection(),
-            const SizedBox(height: 32),
-            // SHB+ module section — null (absent) in the free core or while
-            // the upgrade is locked; renders its own header and spacing.
-            if (provider.plus.preferencesSection(context) case final Widget plusSection)
-              plusSection,
-            _SectionHeader(title: 'YOUR DATA'),
-            const SizedBox(height: 8),
-            _YourDataSection(provider: provider),
             const SizedBox(height: 48),
             _AboutSection(),
             const SizedBox(height: 32),
@@ -89,6 +88,219 @@ class PreferencesScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// A tappable category row on the main Preferences screen that pushes a focused
+/// sub-screen — keeps the top level short instead of one long, busy scroll.
+class _NavRow extends StatelessWidget {
+  const _NavRow({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.subtitle,
+  });
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: title,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: ExcludeSemantics(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            decoration: BoxDecoration(
+              color: kSurface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, size: kIconXS, color: kAccent),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                              color: kTextBright, fontSize: kFontLG)),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(subtitle!,
+                            style: const TextStyle(
+                                color: kTextSubtle,
+                                fontSize: kFontCaption,
+                                height: 1.3)),
+                      ],
+                    ],
+                  ),
+                ),
+                const Icon(CupertinoIcons.chevron_right,
+                    size: kIconXS, color: kTextLabel),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shared scaffold for the Preferences sub-screens: an app bar with a back
+/// button over a padded [ListView] driven by the live [WorkoutProvider].
+class _PrefSubScreen extends StatelessWidget {
+  const _PrefSubScreen({required this.title, required this.children});
+  final String title;
+  final List<Widget> Function(WorkoutProvider provider) children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(title),
+        leading: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: () => Navigator.pop(context),
+          child: Semantics(
+            button: true,
+            label: 'Back',
+            child: const Icon(CupertinoIcons.back, color: kAccent),
+          ),
+        ),
+      ),
+      body: Consumer<WorkoutProvider>(
+        builder: (context, provider, _) => ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          children: children(provider),
+        ),
+      ),
+    );
+  }
+}
+
+/// "You & your body" — the physiological profile that personalizes zones, the
+/// danger threshold, VO₂ grading, and the climbing-energy estimate.
+class _BodyScreen extends StatelessWidget {
+  const _BodyScreen();
+  @override
+  Widget build(BuildContext context) {
+    return _PrefSubScreen(
+      title: 'You & your body',
+      children: (provider) => [
+        const Text(
+          'These personalize your heart-rate zones, the danger threshold, VO₂ '
+          'grading, and the climbing-energy estimate.',
+          style: TextStyle(color: kTextSubtle, fontSize: kFontBase, height: 1.4),
+        ),
+        const SizedBox(height: 24),
+        _SectionHeader(title: 'AGE & SEX'),
+        const SizedBox(height: 8),
+        const Text(
+          'Age sets your estimated max heart rate (208 − 0.7 × age), which drives '
+          'your zones and the danger threshold. Sex grades VO₂ max against age- '
+          'and sex-specific norms.',
+          style: TextStyle(color: kTextSubtle, fontSize: kFontCaption, height: 1.4),
+        ),
+        const SizedBox(height: 12),
+        _AgePickerSection(provider: provider),
+        const SizedBox(height: 16),
+        _SexPickerSection(provider: provider),
+        const SizedBox(height: 32),
+        _SectionHeader(title: 'WEIGHT'),
+        const SizedBox(height: 8),
+        _WeightSection(provider: provider),
+        const SizedBox(height: 32),
+        _SectionHeader(title: 'HEALTH CONDITIONS'),
+        const SizedBox(height: 8),
+        _HealthConditionsSection(provider: provider),
+        const SizedBox(height: 32),
+        _SectionHeader(title: 'RESTING METRICS'),
+        const SizedBox(height: 8),
+        _RestingMetricsSection(provider: provider),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+}
+
+/// "Apple Health" — the HealthKit integration: permission and saving workouts.
+class _AppleHealthScreen extends StatelessWidget {
+  const _AppleHealthScreen();
+  @override
+  Widget build(BuildContext context) {
+    return _PrefSubScreen(
+      title: 'Apple Health',
+      children: (provider) => [
+        _HealthAuthSection(provider: provider),
+        const SizedBox(height: 32),
+        _SectionHeader(title: 'SAVE WORKOUTS'),
+        const SizedBox(height: 12),
+        _AppleHealthSection(provider: provider),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+}
+
+/// "Alerts" — the danger-zone threshold and background-notification behavior.
+class _AlertsScreen extends StatelessWidget {
+  const _AlertsScreen();
+  @override
+  Widget build(BuildContext context) {
+    return _PrefSubScreen(
+      title: 'Alerts',
+      children: (provider) => [
+        _SectionHeader(title: 'DANGER ZONE'),
+        const SizedBox(height: 8),
+        const Text(
+          'We alert you when your heart rate gets dangerously high. The threshold '
+          'is 90% of your max heart rate, calculated from your age (set under You '
+          '& your body).',
+          style: TextStyle(color: kTextSubtle, fontSize: kFontBase, height: 1.4),
+        ),
+        const SizedBox(height: 32),
+        _SectionHeader(title: 'BACKGROUND ALERTS'),
+        const SizedBox(height: 8),
+        const _NotificationsSection(),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+}
+
+/// "Your data" — export, delete, and research-donation controls.
+class _DataScreen extends StatelessWidget {
+  const _DataScreen();
+  @override
+  Widget build(BuildContext context) {
+    return _PrefSubScreen(
+      title: 'Your data',
+      children: (provider) => [
+        _YourDataSection(provider: provider),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+}
+
+/// "HR-gated protocols (SHB+)" — the paid module's gate configuration; reached
+/// only when the upgrade is unlocked (the nav row is hidden otherwise).
+class _GateProtocolsScreen extends StatelessWidget {
+  const _GateProtocolsScreen();
+  @override
+  Widget build(BuildContext context) {
+    return _PrefSubScreen(
+      title: 'HR-gated protocols',
+      children: (provider) =>
+          [provider.plus.preferencesSection(context) ?? const SizedBox.shrink()],
     );
   }
 }
@@ -939,6 +1151,30 @@ class _YourDataSectionState extends State<_YourDataSection> {
                 : const Text('Delete All Data'),
           ),
         ),
+        const SizedBox(height: 10),
+        // Deliberately NOT gated on hasSessions — recovering lost sessions
+        // from Apple Health is most needed when the local list is empty.
+        SizedBox(
+          height: 44,
+          child: FilledButton(
+            onPressed: busy
+                ? null
+                : () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ImportHealthScreen()),
+                    ).then((_) => widget.provider.refreshSessionCount()),
+            style: FilledButton.styleFrom(
+              backgroundColor: kSurface,
+              foregroundColor: kAccent,
+              side: BorderSide(color: busy ? kTextDim : kAccent),
+              disabledBackgroundColor: kSurface,
+              disabledForegroundColor: kTextDim,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Import from Apple Health'),
+          ),
+        ),
       ],
     );
   }
@@ -1047,6 +1283,133 @@ class _NotificationsSectionState extends State<_NotificationsSection> with Widge
   }
 }
 
+/// Opens a [CupertinoPicker] in a bottom sheet rather than inline, so the wheel
+/// can't capture the Preferences ListView's vertical drags — an inline wheel is a
+/// nested vertical scrollable and steals slow page drags. [onSelectedItemChanged]
+/// fires live as the wheel spins; the controller is disposed when the sheet closes.
+Future<void> _showWheelSheet(
+  BuildContext context, {
+  required int itemCount,
+  required int initialItem,
+  required double itemExtent,
+  required IndexedWidgetBuilder itemBuilder,
+  required ValueChanged<int> onSelectedItemChanged,
+}) {
+  final controller = FixedExtentScrollController(initialItem: initialItem);
+  return showCupertinoModalPopup<void>(
+    context: context,
+    builder: (ctx) => Container(
+      height: 280,
+      decoration: const BoxDecoration(
+        color: kSurface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: CupertinoButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Done',
+                    style: TextStyle(color: kAccent, fontWeight: FontWeight.w600)),
+              ),
+            ),
+            Expanded(
+              child: CupertinoPicker(
+                scrollController: controller,
+                itemExtent: itemExtent,
+                backgroundColor: kSurface,
+                squeeze: 1.15,
+                onSelectedItemChanged: onSelectedItemChanged,
+                children:
+                    List<Widget>.generate(itemCount, (i) => itemBuilder(ctx, i)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  ).whenComplete(controller.dispose);
+}
+
+/// A tappable preferences row (label + current value + chevron) that opens its
+/// wheel in [_showWheelSheet]. Replaces the old inline wheels so the page scrolls
+/// cleanly. [footnote] sits inside the card under the row (e.g. the stale hint).
+class _PickerRow extends StatelessWidget {
+  const _PickerRow({
+    required this.label,
+    required this.value,
+    required this.source,
+    required this.onTap,
+    this.semanticsLabel,
+    this.footnote,
+  });
+  final String label;
+  final String value;
+  final String source;
+  final VoidCallback onTap;
+  final String? semanticsLabel;
+  final Widget? footnote;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: kSurface,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            button: true,
+            label: semanticsLabel ?? '$label, $value',
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(label,
+                              style: const TextStyle(
+                                  color: kTextBright, fontSize: kFontLG)),
+                          const SizedBox(height: 2),
+                          Text(source,
+                              style: const TextStyle(
+                                  color: kTextDim, fontSize: kFontCaption)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(value,
+                        style:
+                            const TextStyle(color: kTextBright, fontSize: kFontLG)),
+                    const SizedBox(width: 6),
+                    const Icon(CupertinoIcons.chevron_right,
+                        color: kTextDim, size: 18),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (footnote != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: footnote!,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AgePickerSection extends StatefulWidget {
   const _AgePickerSection({required this.provider});
   final WorkoutProvider provider;
@@ -1059,7 +1422,6 @@ class _AgePickerSectionState extends State<_AgePickerSection> {
   static const _minAge = 18;
   static const _maxAge = 100;
 
-  late FixedExtentScrollController _controller;
   Timer? _debounce;
 
   int get _count => (_maxAge - _minAge + 1) + 1; // +1 for the Auto row
@@ -1068,25 +1430,8 @@ class _AgePickerSectionState extends State<_AgePickerSection> {
       manual == null ? 0 : (manual.clamp(_minAge, _maxAge) - _minAge + 1);
 
   @override
-  void initState() {
-    super.initState();
-    _controller = FixedExtentScrollController(
-        initialItem: _indexFor(widget.provider.manualAge));
-  }
-
-  @override
-  void didUpdateWidget(_AgePickerSection old) {
-    super.didUpdateWidget(old);
-    final want = _indexFor(widget.provider.manualAge);
-    if (_controller.hasClients && _controller.selectedItem != want) {
-      _controller.jumpToItem(want);
-    }
-  }
-
-  @override
   void dispose() {
     _debounce?.cancel();
-    _controller.dispose();
     super.dispose();
   }
 
@@ -1105,59 +1450,41 @@ class _AgePickerSectionState extends State<_AgePickerSection> {
     return 'not set';
   }
 
+  String _value() {
+    final p = widget.provider;
+    if (p.manualAge != null) return '${p.manualAge}';
+    if (p.healthAge != null) return '${p.healthAge}';
+    return 'Set';
+  }
+
+  void _open() {
+    final p = widget.provider;
+    final autoAge = p.manualAge == null ? p.healthAge : null;
+    final autoText = autoAge != null ? 'Auto ($autoAge)' : 'Auto';
+    _showWheelSheet(
+      context,
+      itemCount: _count,
+      initialItem: _indexFor(p.manualAge),
+      itemExtent: 32,
+      onSelectedItemChanged: _onChanged,
+      itemBuilder: (_, i) => Center(
+        child: Text(
+          i == 0 ? autoText : '${i - 1 + _minAge}',
+          style:
+              TextStyle(fontSize: 18, color: i == 0 ? kTextMuted : Colors.white),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: kSurface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Your age',
-                  style: TextStyle(color: kTextBright, fontSize: kFontLG)),
-              Text(_source(),
-                  style: const TextStyle(color: kTextDim, fontSize: kFontCaption)),
-            ],
-          ),
-          SizedBox(
-            height: 100,
-            child: Semantics(
-              label: 'Age override',
-              child: CupertinoPicker(
-                scrollController: _controller,
-                itemExtent: 32,
-                backgroundColor: kSurface,
-                squeeze: 1.15,
-                onSelectedItemChanged: _onChanged,
-                children: List<Widget>.generate(_count, (int i) {
-                  final isAuto = i == 0;
-                  // On Auto, show the Apple Health age it resolves to, e.g.
-                  // "Auto (40)". (When a manual age is active, healthAge equals
-                  // that manual value, so the HK age isn't shown then.)
-                  final autoAge = widget.provider.manualAge == null
-                      ? widget.provider.healthAge
-                      : null;
-                  final autoText = autoAge != null ? 'Auto ($autoAge)' : 'Auto';
-                  return Center(
-                    child: Text(
-                      isAuto ? autoText : '${i - 1 + _minAge}',
-                      style: TextStyle(
-                          fontSize: 18,
-                          color: isAuto ? kTextMuted : Colors.white),
-                    ),
-                  );
-                }),
-              ),
-            ),
-          ),
-        ],
-      ),
+    return _PickerRow(
+      label: 'Your age',
+      value: _value(),
+      source: _source(),
+      semanticsLabel: 'Age override',
+      onTap: _open,
     );
   }
 }
@@ -1176,7 +1503,6 @@ class _SexPickerSection extends StatefulWidget {
 
 class _SexPickerSectionState extends State<_SexPickerSection> {
   // Wheel rows: 0 = Auto, 1 = Female, 2 = Male.
-  late FixedExtentScrollController _controller;
   Timer? _debounce;
 
   static String _pretty(String s) =>
@@ -1186,25 +1512,8 @@ class _SexPickerSectionState extends State<_SexPickerSection> {
       manual == 'male' ? 2 : manual == 'female' ? 1 : 0;
 
   @override
-  void initState() {
-    super.initState();
-    _controller = FixedExtentScrollController(
-        initialItem: _indexFor(widget.provider.manualSex));
-  }
-
-  @override
-  void didUpdateWidget(_SexPickerSection old) {
-    super.didUpdateWidget(old);
-    final want = _indexFor(widget.provider.manualSex);
-    if (_controller.hasClients && _controller.selectedItem != want) {
-      _controller.jumpToItem(want);
-    }
-  }
-
-  @override
   void dispose() {
     _debounce?.cancel();
-    _controller.dispose();
     super.dispose();
   }
 
@@ -1224,57 +1533,41 @@ class _SexPickerSectionState extends State<_SexPickerSection> {
     return 'not set';
   }
 
+  String _value() {
+    final p = widget.provider;
+    if (p.manualSex != null) return _pretty(p.manualSex!);
+    if (p.healthSex != null) return _pretty(p.healthSex!);
+    return 'Set';
+  }
+
+  void _open() {
+    final p = widget.provider;
+    final autoSex = p.manualSex == null ? p.healthSex : null;
+    final autoText = autoSex != null ? 'Auto (${_pretty(autoSex)})' : 'Auto';
+    _showWheelSheet(
+      context,
+      itemCount: 3,
+      initialItem: _indexFor(p.manualSex),
+      itemExtent: 32,
+      onSelectedItemChanged: _onChanged,
+      itemBuilder: (_, i) => Center(
+        child: Text(
+          i == 0 ? autoText : (i == 1 ? 'Female' : 'Male'),
+          style:
+              TextStyle(fontSize: 18, color: i == 0 ? kTextMuted : Colors.white),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // On Auto, show the Apple Health sex it resolves to, e.g. "Auto (Male)".
-    final autoSex =
-        widget.provider.manualSex == null ? widget.provider.healthSex : null;
-    final autoText = autoSex != null ? 'Auto (${_pretty(autoSex)})' : 'Auto';
-    return Container(
-      decoration: BoxDecoration(
-        color: kSurface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Your sex',
-                  style: TextStyle(color: kTextBright, fontSize: kFontLG)),
-              Text(_source(),
-                  style: const TextStyle(color: kTextDim, fontSize: kFontCaption)),
-            ],
-          ),
-          SizedBox(
-            height: 100,
-            child: Semantics(
-              label: 'Biological sex override',
-              child: CupertinoPicker(
-                scrollController: _controller,
-                itemExtent: 32,
-                backgroundColor: kSurface,
-                squeeze: 1.15,
-                onSelectedItemChanged: _onChanged,
-                children: List<Widget>.generate(3, (int i) {
-                  final isAuto = i == 0;
-                  final label = isAuto ? autoText : (i == 1 ? 'Female' : 'Male');
-                  return Center(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                          fontSize: 18,
-                          color: isAuto ? kTextMuted : Colors.white),
-                    ),
-                  );
-                }),
-              ),
-            ),
-          ),
-        ],
-      ),
+    return _PickerRow(
+      label: 'Your sex',
+      value: _value(),
+      source: _source(),
+      semanticsLabel: 'Biological sex override',
+      onTap: _open,
     );
   }
 }
@@ -1303,7 +1596,7 @@ class _RestingMetricsSection extends StatelessWidget {
           label: 'Resting HRV', unit: 'ms', min: 5, max: 200,
           autoValue: provider.recentHrvMs, autoDate: provider.recentHrvDate,
           manualValue: provider.manualHrvMs, onChanged: provider.setManualHrv,
-          staleHint: 'From another watch (Amazfit, Garmin…)? Scroll to enter it.',
+          staleHint: 'From another watch (Amazfit, Garmin…)? Tap to enter it.',
         ),
         const SizedBox(height: 16),
         _MetricOverride(
@@ -1312,7 +1605,7 @@ class _RestingMetricsSection extends StatelessWidget {
           autoDate: provider.recentRestingHrDate,
           manualValue: provider.manualRestingHr,
           onChanged: provider.setManualRestingHr,
-          staleHint: 'From another watch (Amazfit, Garmin…)? Scroll to enter it.',
+          staleHint: 'From another watch (Amazfit, Garmin…)? Tap to enter it.',
         ),
         const SizedBox(height: 16),
         _MetricOverride(
@@ -1321,7 +1614,7 @@ class _RestingMetricsSection extends StatelessWidget {
           autoDate: provider.recentVo2MaxDate,
           manualValue: provider.manualVo2Max,
           onChanged: provider.setManualVo2Max,
-          staleHint: 'From another watch (Amazfit, Garmin…)? Scroll to enter it.',
+          staleHint: 'From another watch (Amazfit, Garmin…)? Tap to enter it.',
         ),
         const SizedBox(height: 20),
         const Text(
@@ -1383,7 +1676,7 @@ class _WeightSection extends StatelessWidget {
       children: [
         const Text(
           'Used to estimate the energy of climbing — work against gravity '
-          '(mass × g × ascent). Leave it on “Apple Health,” or scroll to set it manually.',
+          '(mass × g × ascent). Leave it on “Apple Health,” or tap to set it manually.',
           style: TextStyle(color: kTextSubtle, fontSize: kFontBase, height: 1.4),
         ),
         const SizedBox(height: 12),
@@ -1404,9 +1697,9 @@ class _WeightSection extends StatelessWidget {
   }
 }
 
-/// One resting-metric row: source label + an inline wheel picker whose first
-/// item is "Auto" (use Apple Health). Selecting a number sets the manual
-/// override; selecting "Auto" clears it.
+/// One resting-metric row: a tappable value that opens a wheel picker in a
+/// sheet; the first wheel item is "Auto" (use Apple Health). Selecting a number
+/// sets the manual override; selecting "Auto" clears it.
 class _MetricOverride extends StatefulWidget {
   const _MetricOverride({
     required this.label,
@@ -1432,7 +1725,6 @@ class _MetricOverride extends StatefulWidget {
 }
 
 class _MetricOverrideState extends State<_MetricOverride> {
-  late FixedExtentScrollController _controller;
   Timer? _debounce;
 
   int get _count => (widget.max - widget.min + 1) + 1; // +1 for the Auto row
@@ -1442,25 +1734,8 @@ class _MetricOverrideState extends State<_MetricOverride> {
       : (manual.round().clamp(widget.min, widget.max) - widget.min + 1);
 
   @override
-  void initState() {
-    super.initState();
-    _controller =
-        FixedExtentScrollController(initialItem: _indexFor(widget.manualValue));
-  }
-
-  @override
-  void didUpdateWidget(_MetricOverride old) {
-    super.didUpdateWidget(old);
-    final want = _indexFor(widget.manualValue);
-    if (_controller.hasClients && _controller.selectedItem != want) {
-      _controller.jumpToItem(want);
-    }
-  }
-
-  @override
   void dispose() {
     _debounce?.cancel();
-    _controller.dispose();
     super.dispose();
   }
 
@@ -1490,65 +1765,51 @@ class _MetricOverrideState extends State<_MetricOverride> {
     return d != null && DateTime.now().difference(d).inDays > 30;
   }
 
+  String _value() {
+    if (widget.manualValue != null) {
+      return '${widget.manualValue!.round()} ${widget.unit}';
+    }
+    if (widget.autoValue != null) {
+      return '${widget.autoValue!.round()} ${widget.unit}';
+    }
+    return 'Set';
+  }
+
+  void _open() {
+    _showWheelSheet(
+      context,
+      itemCount: _count,
+      initialItem: _indexFor(widget.manualValue),
+      itemExtent: 32,
+      onSelectedItemChanged: _onChanged,
+      itemBuilder: (_, i) {
+        final autoText = widget.autoValue != null
+            ? 'Apple Health (${widget.autoValue!.round()})'
+            : 'Apple Health (none)';
+        return Center(
+          child: Text(
+            i == 0 ? autoText : '${i - 1 + widget.min} ${widget.unit}',
+            style:
+                TextStyle(fontSize: 18, color: i == 0 ? kTextMuted : Colors.white),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: kSurface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(widget.label,
-                  style: const TextStyle(color: kTextBright, fontSize: kFontLG)),
-              Text(_source(),
-                  style: const TextStyle(color: kTextDim, fontSize: kFontCaption)),
-            ],
-          ),
-          SizedBox(
-            height: 100,
-            child: Semantics(
-              label: '${widget.label} override',
-              child: CupertinoPicker(
-                scrollController: _controller,
-                itemExtent: 32,
-                backgroundColor: kSurface,
-                squeeze: 1.15,
-                onSelectedItemChanged: _onChanged,
-                children: List<Widget>.generate(_count, (i) {
-                  final isAuto = i == 0;
-                  // The first row uses the live Apple Health value, e.g.
-                  // "Apple Health (55)"; "(none)" when Apple Health has no value.
-                  final autoText = widget.autoValue != null
-                      ? 'Apple Health (${widget.autoValue!.round()})'
-                      : 'Apple Health (none)';
-                  return Center(
-                    child: Text(
-                      isAuto ? autoText : '${i - 1 + widget.min} ${widget.unit}',
-                      style: TextStyle(
-                          fontSize: 18,
-                          color: isAuto ? kTextMuted : Colors.white),
-                    ),
-                  );
-                }),
-              ),
-            ),
-          ),
-          if (_suggestManual && widget.staleHint != null) ...[
-            const SizedBox(height: 2),
-            Text(
-              widget.staleHint!,
+    return _PickerRow(
+      label: widget.label,
+      value: _value(),
+      source: _source(),
+      semanticsLabel: '${widget.label} override',
+      onTap: _open,
+      footnote: (_suggestManual && widget.staleHint != null)
+          ? Text(widget.staleHint!,
               style: const TextStyle(
-                  color: kZone3, fontSize: kFontCaption, height: 1.3),
-            ),
-          ],
-        ],
-      ),
+                  color: kZone3, fontSize: kFontCaption, height: 1.3))
+          : null,
     );
   }
 }

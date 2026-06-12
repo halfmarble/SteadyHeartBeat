@@ -156,6 +156,32 @@ class WorkoutService {
     return result;
   }
 
+  /// Workouts stored in Apple Health (any source), newest first, for the
+  /// import picker. Each entry: type (String key), startEpoch / endEpoch
+  /// (double, epoch seconds), durationSeconds (double), source (String), and
+  /// optionally kcal / distanceMeters (double).
+  Future<List<Map<String, dynamic>>> listHealthWorkouts() async {
+    final result = await _method.invokeMethod<List<dynamic>>('listHealthWorkouts');
+    return (result ?? const [])
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+  }
+
+  /// Heart-rate samples between two instants as [secondsFromStart, bpm] pairs,
+  /// ascending — the same shape as a session's hrTimeline.
+  Future<List<List<double>>> getHeartRateSeries({
+    required double startEpoch,
+    required double endEpoch,
+  }) async {
+    final result = await _method.invokeMethod<List<dynamic>>('getHeartRateSeries', {
+      'startEpoch': startEpoch,
+      'endEpoch': endEpoch,
+    });
+    return (result ?? const [])
+        .map((e) => (e as List).map((v) => (v as num).toDouble()).toList())
+        .toList();
+  }
+
   /// Returns the `airpods.pro` SF Symbol rendered to PNG bytes at the given pointSize,
   /// white on transparent background. Returns null if the symbol is unavailable.
   Future<Uint8List?> getAirPodsIcon({double pointSize = 120}) async {

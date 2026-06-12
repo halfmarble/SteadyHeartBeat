@@ -76,7 +76,7 @@ class _FakeWakelock extends WakelockPlusPlatformInterface {
 class _FakeTts extends TtsService {
   @override Future<void> init() async {}
   @override Future<void> setVoice(String gender) async {}
-  @override Future<void> speak(String text) async {}
+  @override Future<void> speak(String text, {bool force = false}) async {}
   @override Future<void> stop() async {}
   @override Future<void> dispose() async {}
 }

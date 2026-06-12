@@ -109,11 +109,34 @@ class _DeniedAuthWorkoutService extends _FakeWorkoutService {
   Future<bool> requestAuthorization() async => false;
 }
 
+/// Returns an overnight-sourced HRV reading (native averages SDNN across the
+/// last night's whole in-bed span and tags it source 'bed').
+class _BedHrvWorkoutService extends _FakeWorkoutService {
+  @override
+  Future<Map<String, dynamic>?> getRecentHRV() async =>
+      {'ms': 44.0, 'timestamp': 1700000000.0, 'source': 'bed', 'count': 8};
+}
+
+/// Returns the single-sample fallback HRV reading (no usable sleep window).
+class _RecentHrvWorkoutService extends _FakeWorkoutService {
+  @override
+  Future<Map<String, dynamic>?> getRecentHRV() async =>
+      {'ms': 41.0, 'timestamp': 1700000000.0, 'source': 'recent'};
+}
+
+/// Returns an overnight-sourced HR reading (native averages heartRate across
+/// the last night's whole in-bed span and tags it source 'bed').
+class _BedHrWorkoutService extends _FakeWorkoutService {
+  @override
+  Future<Map<String, dynamic>?> getRestingHR() async =>
+      {'bpm': 58.0, 'timestamp': 1700000000.0, 'source': 'bed', 'count': 40};
+}
+
 class _FakeTtsService extends TtsService {
   final List<String> spoken = [];
   @override Future<void> init() async {}
   @override Future<void> setVoice(String gender) async {}
-  @override Future<void> speak(String text) async => spoken.add(text);
+  @override Future<void> speak(String text, {bool force = false}) async => spoken.add(text);
   @override Future<void> stop() async {}
   @override Future<void> dispose() async {}
 }
@@ -322,6 +345,44 @@ void main() {
 
       expect(provider.manualVo2Max, 48,
           reason: 'no Apple Health VO₂ max to adopt — never wipe the only number');
+      provider.dispose();
+    });
+  });
+
+  // ── Overnight (sleep) HRV ────────────────────────────────────────────────────
+
+  group('HRV source', () {
+    test('captures the overnight in-bed-averaged reading and its source', () async {
+      final provider = await _makeProvider(workout: _BedHrvWorkoutService());
+      await provider.initialized;
+      // _fetchRecentHRV is launched fire-and-forget at the tail of _loadPrefs;
+      // pump the loop so it resolves before asserting.
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(provider.recentHrvMs, 44.0);
+      expect(provider.hrvSource, 'bed');
+      expect(provider.effectiveHrvMs, 44.0);
+      provider.dispose();
+    });
+
+    test('captures the single-sample fallback source', () async {
+      final provider = await _makeProvider(workout: _RecentHrvWorkoutService());
+      await provider.initialized;
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(provider.recentHrvMs, 41.0);
+      expect(provider.hrvSource, 'recent');
+      provider.dispose();
+    });
+
+    test('captures the overnight in-bed-averaged HR reading and its source', () async {
+      final provider = await _makeProvider(workout: _BedHrWorkoutService());
+      await provider.initialized;
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(provider.recentRestingHrBpm, 58.0);
+      expect(provider.restingHrSource, 'bed');
+      expect(provider.effectiveRestingHrBpm, 58.0);
       provider.dispose();
     });
   });

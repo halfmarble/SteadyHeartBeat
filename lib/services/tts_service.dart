@@ -23,8 +23,13 @@ class TtsService {
     await _channel.invokeMethod('setVoice', {'identifier': identifier});
   }
 
-  Future<void> speak(String text) async {
-    await _channel.invokeMethod('speak', {'text': text});
+  /// Speaks [text]. Announcements queue natively and are never interrupted —
+  /// a cue requested while another is speaking plays right after it (a newer
+  /// BPM replaces a BPM still waiting in the queue). [force] marks
+  /// preference-change feedback: native skips the BPM cooldown so the cue is
+  /// heard immediately even right after a regular announcement.
+  Future<void> speak(String text, {bool force = false}) async {
+    await _channel.invokeMethod('speak', {'text': text, 'force': force});
   }
 
   Future<void> stop() async {

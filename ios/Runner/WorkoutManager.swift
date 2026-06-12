@@ -39,20 +39,27 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     private var _ttsConnectedFormat: AVAudioFormat?
     // Guards against overlapping write() renders on the one synthesizer.
     private var _rendering = false
-    // Monotonic id for the current playback run. Bumped whenever the player is
-    // flushed (interrupt); stale completion handlers check it and bail, so a
-    // superseded cue can't decrement the count or un-duck out from under its
-    // replacement.
+    // Monotonic id for the current playback run. Bumped at each cue start and on
+    // every flush (stop / interruption / engine teardown); stale completion
+    // handlers check it and bail, so a dead cue can't advance the queue or
+    // un-duck out from under its successor.
     private var _announceGen = 0
-    // Buffers still scheduled on the player. Music un-ducks when this returns to 0
-    // (the player goes idle), NOT per-cue — so a BPM queued behind the start
-    // confirmation doesn't un-duck (or stop) early.
-    private var _outstandingBuffers = 0
-    // True while a non-BPM utterance (start confirmation, warnings) is scheduled. A
-    // BPM cue queues BEHIND such an utterance instead of interrupting it, so the
-    // confirmation/warning is never cut off mid-word. BPM-vs-BPM still interrupts
-    // (latest reading wins).
-    private var _priorityActive = false
+    // Bumped only on a flush. A render that completes after a flush checks this
+    // and discards its buffers instead of playing a cue from the old run.
+    private var _flushGen = 0
+    // FIFO announcement pipeline. Cues are NEVER interrupted: a request that
+    // arrives while another is rendering waits in _speakQueue; a rendered cue
+    // that arrives while another is playing waits in _cueQueue. The one
+    // exception to strict FIFO is BPM coalescing — a new BPM reading REPLACES a
+    // BPM cue still waiting in either queue (latest reading wins) rather than
+    // piling stale readings up behind a long cue.
+    private struct _SpeakRequest { let text: String; let withBell: Bool; let isBpm: Bool }
+    private struct _Cue { let buffers: [AVAudioPCMBuffer]; let isBpm: Bool }
+    private var _speakQueue: [_SpeakRequest] = []
+    private var _cueQueue: [_Cue] = []
+    // True from cue start until its last buffer finishes — the playback-side
+    // "busy" flag that routes newly rendered cues into _cueQueue.
+    private var _playing = false
     // Fixed format for the silent keep-alive buffer, decoupled from the TTS render
     // format so the engine can start immediately at workout start (the mixer
     // converts the TTS buffers when they arrive).
@@ -206,7 +213,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
 
         switch type {
         case .began:
-            _ttsPlayer.stop()
+            _flushSpeech()
 
         case .ended:
             // shouldResume is informational here. When iOS already wants us to
@@ -707,7 +714,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
 
     // MARK: - Speech
 
-    func speak(text: String, withBell: Bool = false) {
+    func speak(text: String, withBell: Bool = false, force: Bool = false) {
         guard !text.isEmpty else { return }
         // BPM-number announces are rate-limited so the Dart delta-trigger
         // (which fires on the first sample) doesn't double up with noisy
@@ -715,41 +722,71 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         // signal lost" — i.e., utterances that contain anything but digits —
         // always speak.
         let isBpmAnnounce = text.allSatisfy { $0.isNumber }
-        // Suppress BPM announces during a boxing countdown/bell/announcement so
-        // they don't talk over "3,2,1 → bell → ROUND X / REST".
-        if isBpmAnnounce && Date().timeIntervalSinceReferenceDate < _suppressBpmUntil {
-            return
-        }
-        // Continuous mode runs announces back-to-back, so the BPM cooldown
-        // (which exists to de-dupe the timed/delta paths) must not apply there.
-        if isBpmAnnounce && !_continuousAnnounce {
-            let now = Date().timeIntervalSinceReferenceDate
-            // Cap the cooldown just under the announce interval so a short
-            // interval (e.g. 2s) isn't throttled by the default 5s cooldown —
-            // the cooldown only needs to suppress a timed/delta double-announce,
-            // not the user's chosen cadence. The 0.5s margin absorbs timer jitter
-            // so a tick firing a hair early still announces.
-            let cooldown = min(_minBpmAnnounceCooldownSeconds, _announceIntervalSeconds - 0.5)
-            if cooldown > 0 && (now - _lastBpmAnnouncedAt) < cooldown {
+        if force {
+            // Preference-change feedback: the user just changed an announce
+            // setting and expects to hear the result right away — typically
+            // seconds after a regular announcement, exactly when the cooldown
+            // would swallow it. Skip cooldown + countdown suppression, but
+            // still stamp the cooldown so the next timed/delta announce
+            // doesn't double up right behind this one.
+            if isBpmAnnounce {
+                _lastBpmAnnouncedAt = Date().timeIntervalSinceReferenceDate
+            }
+        } else {
+            // Suppress BPM announces during a boxing countdown/bell/announcement
+            // so they don't talk over "3,2,1 → bell → ROUND X / REST".
+            if isBpmAnnounce && Date().timeIntervalSinceReferenceDate < _suppressBpmUntil {
                 return
             }
-            _lastBpmAnnouncedAt = now
+            // Continuous mode runs announces back-to-back, so the BPM cooldown
+            // (which exists to de-dupe the timed/delta paths) must not apply there.
+            if isBpmAnnounce && !_continuousAnnounce {
+                let now = Date().timeIntervalSinceReferenceDate
+                // Cap the cooldown just under the announce interval so a short
+                // interval (e.g. 2s) isn't throttled by the default 5s cooldown —
+                // the cooldown only needs to suppress a timed/delta double-announce,
+                // not the user's chosen cadence. The 0.5s margin absorbs timer jitter
+                // so a tick firing a hair early still announces.
+                let cooldown = min(_minBpmAnnounceCooldownSeconds, _announceIntervalSeconds - 0.5)
+                if cooldown > 0 && (now - _lastBpmAnnouncedAt) < cooldown {
+                    return
+                }
+                _lastBpmAnnouncedAt = now
+            }
         }
         guard _engine.isRunning else { return }
-        guard !_rendering else { return }
+        let req = _SpeakRequest(text: text, withBell: withBell, isBpm: isBpmAnnounce)
+        // One render at a time — the synthesizer can't overlap write() calls. A
+        // request that lands mid-render queues instead of being dropped; a queued
+        // BPM is replaced by the newer reading rather than appended.
+        if _rendering {
+            _speakQueue = AnnounceQueue.enqueue(_speakQueue, req) { $0.isBpm }
+            return
+        }
+        _renderAndPlay(req)
+    }
+
+    // Renders the next queued speak request, if the synthesizer is free.
+    private func _drainSpeakQueue() {
+        guard !_rendering, !_speakQueue.isEmpty else { return }
+        _renderAndPlay(_speakQueue.removeFirst())
+    }
+
+    private func _renderAndPlay(_ req: _SpeakRequest) {
         _rendering = true
+        let fgen = _flushGen
         // Enrich a bare BPM number with zone coaching ("142, zone 4, push") when
         // enabled. Done here so both the Dart delta-trigger and the native
         // periodic announce (which both pass the plain number) get coached, while
-        // the cooldown/interrupt logic above still keys off the raw digits.
+        // the cooldown logic in speak() keys off the raw digits.
         let leadText: String
         let nudgeText: String?
-        if isBpmAnnounce {
-            let composed = _composeBpmAnnounce(Double(text) ?? 0)
+        if req.isBpm {
+            let composed = _composeBpmAnnounce(Double(req.text) ?? 0)
             leadText = composed.lead
             nudgeText = composed.nudge
         } else {
-            leadText = text
+            leadText = req.text
             nudgeText = nil
         }
 
@@ -766,7 +803,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
                 // gap after the bell lets the metallic ring clear, and the spoken
                 // announcement is boosted so it lands clearly after the countdown.
                 var toPlay = leadBuffers + extra
-                if withBell, let fmt = toPlay.first?.format,
+                if req.withBell, let fmt = toPlay.first?.format,
                    let bell = self._makeBell(format: fmt) {
                     self._amplify(leadBuffers, gain: 1.8)
                     var seq: [AVAudioPCMBuffer] = [bell]
@@ -776,7 +813,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
                     seq.append(contentsOf: toPlay)
                     toPlay = seq
                 }
-                self._playDucked(toPlay, isBpm: isBpmAnnounce)
+                self._playDucked(toPlay, isBpm: req.isBpm, flushGen: fgen)
             }
             guard let nudge = nudgeText else { finish([]); return }
             // Slower + lower-pitched bark; "!" sharpens the intonation, and the
@@ -868,75 +905,92 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         return buf
     }
 
-    // Duck Music and play the rendered cue through our engine, then un-duck once
-    // the last buffer has finished. Ducking is done by mutating the options on the
+    // Duck Music and play the rendered cue through our engine, un-ducking once
+    // the queue drains. Ducking is done by mutating the options on the
     // ALREADY-ACTIVE session (allowed in the background; setActive(true) is not).
-    private func _playDucked(_ buffers: [AVAudioPCMBuffer], isBpm: Bool) {
+    // Cues are queued, never interrupted; only a BPM cue that hasn't started
+    // playing yet is replaced by a newer reading.
+    private func _playDucked(_ buffers: [AVAudioPCMBuffer], isBpm: Bool, flushGen: Int) {
         _rendering = false
+        // Kick the next queued render (if any) so it's ready when this cue ends.
+        defer { _drainSpeakQueue() }
+        // A flush (stop / interruption / engine teardown) happened mid-render —
+        // this cue belongs to the old run, drop it.
+        guard flushGen == _flushGen else { return }
         guard _engine.isRunning, !buffers.isEmpty else { return }
-        let fmt = buffers[0].format
-        // The player↔mixer connection must match the buffer format or scheduleBuffer
-        // crashes; reconnecting requires a stopped player, so a format change forces
-        // an interrupt. Otherwise: a BPM queues behind an in-flight priority
-        // utterance (don't cut off the confirmation/warning); everything else
-        // (priority utterances, BPM-vs-BPM) interrupts so the latest wins.
-        let needReconnect = (_ttsConnectedFormat == nil || _ttsConnectedFormat != fmt)
-        let interrupt = needReconnect || (isBpm ? !_priorityActive : true)
-
-        if interrupt {
-            _announceGen += 1
-            _ttsPlayer.stop()
-            _outstandingBuffers = 0
-            _priorityActive = false
+        if _playing {
+            _cueQueue = AnnounceQueue.enqueue(_cueQueue, _Cue(buffers: buffers, isBpm: isBpm)) { $0.isBpm }
+            return
         }
+        _startCue(_Cue(buffers: buffers, isBpm: isBpm))
+    }
+
+    // Schedule one cue on the (idle) player. The player↔mixer connection must
+    // match the buffer format or scheduleBuffer crashes — reconnecting requires
+    // a stopped player, which is why format changes are handled here, between
+    // cues, and never mid-cue.
+    private func _startCue(_ cue: _Cue) {
+        let fmt = cue.buffers[0].format
+        let toPlay = cue.buffers.filter { $0.format == fmt }
+        guard !toPlay.isEmpty else { _cueFinished(); return }
+        _playing = true
+        _announceGen += 1
         let gen = _announceGen
-        if needReconnect {
+        if _ttsConnectedFormat == nil || _ttsConnectedFormat != fmt {
+            _ttsPlayer.stop()
             _engine.connect(_ttsPlayer, to: _engine.mainMixerNode, format: fmt)
             _ttsConnectedFormat = fmt
         }
-
-        let s = AVAudioSession.sharedInstance()
-        try? s.setCategory(.playback, mode: .voicePrompt, options: [.mixWithOthers, .duckOthers])
-        if !isBpm { _priorityActive = true }
-
-        let lastIdx = buffers.count - 1
-        var scheduled = 0
-        for (i, buf) in buffers.enumerated() {
-            guard buf.format == fmt else { continue }
-            scheduled += 1
-            _outstandingBuffers += 1
+        try? AVAudioSession.sharedInstance().setCategory(
+            .playback, mode: .voicePrompt, options: [.mixWithOthers, .duckOthers])
+        let lastIdx = toPlay.count - 1
+        for (i, buf) in toPlay.enumerated() {
             let isLast = (i == lastIdx)
             _ttsPlayer.scheduleBuffer(buf, at: nil, options: [],
                                       completionCallbackType: .dataPlayedBack) { [weak self] _ in
+                guard isLast else { return }
                 DispatchQueue.main.async {
-                    // Ignore completions from a flushed (superseded) run.
+                    // Ignore the completion of a flushed (stopped) run.
                     guard let self = self, self._announceGen == gen else { return }
-                    self._outstandingBuffers -= 1
-                    if isLast && !isBpm { self._priorityActive = false }
-                    if self._outstandingBuffers <= 0 {
-                        self._outstandingBuffers = 0
-                        self._priorityActive = false
-                        try? AVAudioSession.sharedInstance().setCategory(
-                            .playback, mode: .voicePrompt, options: [.mixWithOthers])
-                    }
+                    self._cueFinished()
                 }
             }
-        }
-        if scheduled == 0 {
-            // Nothing playable — don't strand Music in the ducked state.
-            if _outstandingBuffers == 0 {
-                try? s.setCategory(.playback, mode: .voicePrompt, options: [.mixWithOthers])
-            }
-            return
         }
         if !_ttsPlayer.isPlaying { _ttsPlayer.play() }
     }
 
-    func stopSpeaking() {
+    // The current cue finished cleanly: start the next queued cue (staying
+    // ducked between them), or go idle and restore Music's volume.
+    private func _cueFinished() {
+        if !_cueQueue.isEmpty {
+            _startCue(_cueQueue.removeFirst())
+        } else {
+            _playing = false
+            _unduck()
+        }
+    }
+
+    private func _unduck() {
+        try? AVAudioSession.sharedInstance().setCategory(
+            .playback, mode: .voicePrompt, options: [.mixWithOthers])
+    }
+
+    // Flush the whole announcement pipeline: pending renders, queued cues, and
+    // the in-flight cue. _rendering is deliberately left alone — a render still
+    // in flight clears it on completion, and its result is dropped via the
+    // _flushGen check in _playDucked.
+    private func _flushSpeech() {
+        _flushGen += 1
         _announceGen += 1
+        _speakQueue.removeAll()
+        _cueQueue.removeAll()
         _ttsPlayer.stop()
-        _outstandingBuffers = 0
-        _priorityActive = false
+        _playing = false
+    }
+
+    func stopSpeaking() {
+        _flushSpeech()
+        _unduck()
     }
 
     // MARK: - Periodic announce
@@ -987,9 +1041,10 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         // quiet here so the periodic doesn't double up with the gate's cue.
         if _isInGatedPhase { return }
         // Continuous mode polls frequently; don't pile utterances on top of one
-        // another — wait for the current one to finish. This isSpeaking gate is
-        // what makes the announces run back-to-back rather than overlapping.
-        if _continuousAnnounce && _ttsPlayer.isPlaying { return }
+        // another — wait for the current one to finish. (The player itself stays
+        // in the "playing" state between cues now, so gate on the pipeline's own
+        // busy flags, not _ttsPlayer.isPlaying.)
+        if _continuousAnnounce && (_playing || _rendering || !_speakQueue.isEmpty) { return }
         // Suppress announce if the cached BPM hasn't been refreshed within the
         // staleness window — the Dart side will speak "Heart rate signal lost"
         // separately via its own silence timer; we just go quiet here so the
@@ -1006,6 +1061,79 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         speak(text: "\(Int(_latestBpm.rounded()))")
     }
 
+    // MARK: - Apple Health workout import
+
+    /// Workouts stored in Apple Health (any source — this app, Apple Watch,
+    /// others), newest first, as light entries for the import picker. Duration
+    /// filtering happens Dart-side so the threshold control re-filters
+    /// instantly without another HealthKit round-trip.
+    func listHealthWorkouts(completion: @escaping ([[String: Any]]) -> Void) {
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+        let query = HKSampleQuery(sampleType: .workoutType(), predicate: nil,
+                                  limit: 500, sortDescriptors: [sort]) { _, samples, _ in
+            let out: [[String: Any]] = (samples as? [HKWorkout] ?? []).map { w in
+                var entry: [String: Any] = [
+                    "type": Self._activityKey(w.workoutActivityType),
+                    "startEpoch": w.startDate.timeIntervalSince1970,
+                    "endEpoch": w.endDate.timeIntervalSince1970,
+                    "durationSeconds": w.duration,
+                    "source": w.sourceRevision.source.name,
+                ]
+                if let kcal = w.statistics(for: HKQuantityType(.activeEnergyBurned))?
+                    .sumQuantity()?.doubleValue(for: .kilocalorie()) {
+                    entry["kcal"] = kcal
+                }
+                // Walking-type distance for most workouts, cycling distance for rides.
+                if let dist = w.statistics(for: HKQuantityType(.distanceWalkingRunning))?
+                    .sumQuantity()?.doubleValue(for: .meter()) {
+                    entry["distanceMeters"] = dist
+                } else if let dist = w.statistics(for: HKQuantityType(.distanceCycling))?
+                    .sumQuantity()?.doubleValue(for: .meter()) {
+                    entry["distanceMeters"] = dist
+                }
+                return entry
+            }
+            DispatchQueue.main.async { completion(out) }
+        }
+        healthStore.execute(query)
+    }
+
+    // Map HealthKit activity types onto the app's workout-type keys; anything
+    // the app has no first-class type for imports as "other".
+    private static func _activityKey(_ t: HKWorkoutActivityType) -> String {
+        switch t {
+        case .boxing:  return "boxing"
+        case .cycling: return "cycling"
+        case .running: return "running"
+        case .walking: return "walking"
+        case .hiking:  return "hiking"
+        default:       return "other"
+        }
+    }
+
+    /// Heart-rate samples between two instants, ascending, as
+    /// [secondsFromStart, bpm] pairs — the same shape as a live session's
+    /// hrTimeline, so an imported session replays in the chart identically.
+    func getHeartRateSeries(startEpoch: Double, endEpoch: Double,
+                            completion: @escaping ([[Double]]) -> Void) {
+        let start = Date(timeIntervalSince1970: startEpoch)
+        let end = Date(timeIntervalSince1970: endEpoch)
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end,
+                                                    options: .strictStartDate)
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+        let query = HKSampleQuery(sampleType: HKQuantityType(.heartRate),
+                                  predicate: predicate,
+                                  limit: HKObjectQueryNoLimit,
+                                  sortDescriptors: [sort]) { _, samples, _ in
+            let unit = HKUnit.count().unitDivided(by: .minute())
+            let series: [[Double]] = (samples as? [HKQuantitySample] ?? []).map { s in
+                [s.startDate.timeIntervalSince(start), s.quantity.doubleValue(for: unit)]
+            }
+            DispatchQueue.main.async { completion(series) }
+        }
+        healthStore.execute(query)
+    }
+
     // MARK: - Authorization
 
     func requestAuthorization(completion: @escaping (Bool, String?) -> Void) {
@@ -1018,6 +1146,8 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         // unrelated permission dialogs in a row when they tap Start.
         let typesToShare: Set<HKSampleType> = [HKQuantityType.workoutType()]
         let typesToRead: Set<HKObjectType> = [
+            // Read workouts back for the Apple Health import (session recovery).
+            HKObjectType.workoutType(),
             HKQuantityType(.heartRate),
             HKQuantityType(.activeEnergyBurned),
             HKQuantityType(.respiratoryRate),
@@ -1028,6 +1158,8 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
             HKQuantityType(.distanceWalkingRunning),
             HKQuantityType(.flightsClimbed),
             HKQuantityType(.bodyMass),
+            // Sleep windows scope the overnight-HRV average (see getRecentHRV).
+            HKCategoryType(.sleepAnalysis),
             HKObjectType.characteristicType(forIdentifier: .dateOfBirth)!,
             HKObjectType.characteristicType(forIdentifier: .biologicalSex)!,
         ]
@@ -1235,12 +1367,9 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     }
 
     private func _stopAudioEngine() {
-        _announceGen += 1
-        _ttsPlayer.stop()
+        _flushSpeech()
         _keepAlivePlayer.stop()
         _engine.stop()
-        _outstandingBuffers = 0
-        _priorityActive = false
         _rendering = false
     }
 
@@ -1248,6 +1377,9 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     // — rebuild it so the next cue has a live graph.
     @objc private func _engineConfigChanged() {
         guard session != nil else { return }
+        // The config change killed any scheduled buffers; clear the pipeline so
+        // a half-played cue's bookkeeping can't wedge the queue.
+        _flushSpeech()
         _rebuildEngine()
     }
 
@@ -1356,37 +1488,187 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         return profile
     }
 
-    // MARK: - Most recent resting HRV (from Apple Watch, if available)
+    // MARK: - Overnight (in-bed) HRV, falling back to most recent resting HRV
 
+    // SDNN HRV is only comparable as a resting measurement, and the cleanest
+    // resting reading is overnight. We resolve the most recent night (sleep
+    // onset → out of bed, awake periods included) and take the MEDIAN SDNN
+    // across that whole in-bed span — "bed HRV" — rather than grabbing whatever
+    // the single latest sample happens to be (a daytime Breathe session or a
+    // random midday stillness reading). Median, not mean, because the in-bed
+    // SDNN series is spiky (movement, sleep onset) and right-skewed. With no
+    // usable night — or no SDNN inside it — we fall back to the most recent
+    // single sample, source "recent". The math lives in OvernightMath (tested).
     func getRecentHRV(completion: @escaping ([String: Any]?) -> Void) {
-        let type = HKQuantityType(.heartRateVariabilitySDNN)
-        let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
-        let query = HKSampleQuery(sampleType: type, predicate: nil, limit: 1, sortDescriptors: [sort]) { _, samples, _ in
-            guard let sample = samples?.first as? HKQuantitySample else {
+        _selectSleepNight { [weak self] night in
+            guard let self = self else {
                 DispatchQueue.main.async { completion(nil) }
                 return
             }
-            let ms = sample.quantity.doubleValue(for: HKUnit(from: "ms"))
-            let timestamp = sample.endDate.timeIntervalSince1970
-            DispatchQueue.main.async { completion(["ms": ms, "timestamp": timestamp]) }
+            guard let night = night else {
+                self._mostRecentHRV { r in DispatchQueue.main.async { completion(r) } }
+                return
+            }
+            self._hrvSamples(start: night.sleepOnset, end: night.bedEnd) { samples in
+                let unit = HKUnit(from: "ms")
+                let vals = samples.map { $0.quantity.doubleValue(for: unit) }
+                // Median (not mean) — robust to the outlier SDNN samples the
+                // in-bed window collects during movement / sleep onset.
+                guard let value = OvernightMath.median(vals) else {
+                    self._mostRecentHRV { r in DispatchQueue.main.async { completion(r) } }
+                    return
+                }
+                DispatchQueue.main.async {
+                    completion([
+                        "ms": value,
+                        // Out-of-bed time, so the "Xh ago" label tracks the night.
+                        "timestamp": night.bedEnd.timeIntervalSince1970,
+                        "source": "bed",
+                        "count": vals.count,
+                    ])
+                }
+            }
+        }
+    }
+
+    // Resolves the night for bed HRV / bed HR: the most recent sleep block of at
+    // least 3 h that falls within the user's normal sleeping hours (inferred from
+    // recent history) — rejecting naps and odd-hour sleep. Pulls 15 days of
+    // sleepAnalysis (enough to infer the habitual sleep midpoint), clusters into
+    // nights, stamps each night's local time-of-day midpoint, and lets
+    // OvernightMath pick. Nil when no qualifying night — the caller then falls
+    // back to a single recent sample.
+    private func _selectSleepNight(_ completion: @escaping (OvernightMath.Night?) -> Void) {
+        let type = HKCategoryType(.sleepAnalysis)
+        let end = Date()
+        let start = end.addingTimeInterval(-15 * 24 * 3600)
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+        let query = HKSampleQuery(sampleType: type, predicate: predicate,
+                                  limit: HKObjectQueryNoLimit, sortDescriptors: [sort]) { _, samples, _ in
+            let segs = (samples as? [HKCategorySample] ?? []).map { s -> OvernightMath.Segment in
+                let asleep: Bool
+                if let v = HKCategoryValueSleepAnalysis(rawValue: s.value) {
+                    asleep = HKCategoryValueSleepAnalysis.allAsleepValues.contains(v)
+                } else {
+                    asleep = false
+                }
+                return OvernightMath.Segment(start: s.startDate, end: s.endDate, isAsleep: asleep)
+            }
+            // Stamp each night's sleep-midpoint as local seconds-since-midnight —
+            // the one piece OvernightMath can't do (it needs the calendar/timezone).
+            let cal = Calendar.current
+            let scored: [OvernightMath.ScoredNight] = OvernightMath.clusters(segs).compactMap { cluster in
+                guard let night = OvernightMath.night(from: cluster) else { return nil }
+                let midEpoch = (night.sleepOnset.timeIntervalSince1970 + night.bedEnd.timeIntervalSince1970) / 2
+                let mid = Date(timeIntervalSince1970: midEpoch)
+                let tod = mid.timeIntervalSince(cal.startOfDay(for: mid))
+                return OvernightMath.ScoredNight(night: night, midpointTOD: tod)
+            }
+            completion(OvernightMath.selectNight(scored))
         }
         healthStore.execute(query)
     }
 
-    // MARK: - Resting heart rate (from Apple Watch background data)
+    // Raw SDNN samples over [start, end]; averaging is done by OvernightMath.
+    private func _hrvSamples(start: Date, end: Date,
+                             _ completion: @escaping ([HKQuantitySample]) -> Void) {
+        let type = HKQuantityType(.heartRateVariabilitySDNN)
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [.strictStartDate])
+        let query = HKSampleQuery(sampleType: type, predicate: predicate,
+                                  limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, _ in
+            completion(samples as? [HKQuantitySample] ?? [])
+        }
+        healthStore.execute(query)
+    }
 
+    // The single most recent SDNN sample, regardless of context — the fallback
+    // when no overnight reading is available.
+    private func _mostRecentHRV(_ completion: @escaping ([String: Any]?) -> Void) {
+        let type = HKQuantityType(.heartRateVariabilitySDNN)
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+        let query = HKSampleQuery(sampleType: type, predicate: nil, limit: 1, sortDescriptors: [sort]) { _, samples, _ in
+            guard let sample = samples?.first as? HKQuantitySample else {
+                completion(nil)
+                return
+            }
+            let ms = sample.quantity.doubleValue(for: HKUnit(from: "ms"))
+            completion([
+                "ms": ms,
+                "timestamp": sample.endDate.timeIntervalSince1970,
+                "source": "recent",
+            ])
+        }
+        healthStore.execute(query)
+    }
+
+    // MARK: - Overnight (in-bed) HR, falling back to most recent resting HR
+
+    // The heart-rate analog of bed HRV: the mean heart rate across last night's
+    // whole in-bed span (sleep onset → out of bed, awake periods included) —
+    // "bed HR". restingHeartRate is one computed value per day with nothing to
+    // average over a night, so bed HR averages raw heartRate samples in the
+    // window instead. With no usable night — or no HR in it — we fall back to
+    // the most recent restingHeartRate sample, marked source "recent". Reuses
+    // the same OvernightMath windowing as getRecentHRV.
     func getRestingHR(completion: @escaping ([String: Any]?) -> Void) {
+        _selectSleepNight { [weak self] night in
+            guard let self = self else {
+                DispatchQueue.main.async { completion(nil) }
+                return
+            }
+            guard let night = night else {
+                self._mostRecentRestingHR { r in DispatchQueue.main.async { completion(r) } }
+                return
+            }
+            self._heartRateSamples(start: night.sleepOnset, end: night.bedEnd) { samples in
+                let unit = HKUnit.count().unitDivided(by: .minute())
+                let vals = samples.map { $0.quantity.doubleValue(for: unit) }
+                guard let mean = OvernightMath.mean(vals) else {
+                    self._mostRecentRestingHR { r in DispatchQueue.main.async { completion(r) } }
+                    return
+                }
+                DispatchQueue.main.async {
+                    completion([
+                        "bpm": mean,
+                        // Out-of-bed time, so the "Xh ago" label tracks the night.
+                        "timestamp": night.bedEnd.timeIntervalSince1970,
+                        "source": "bed",
+                        "count": vals.count,
+                    ])
+                }
+            }
+        }
+    }
+
+    // Raw heartRate samples over [start, end]; averaging is done by OvernightMath.
+    private func _heartRateSamples(start: Date, end: Date,
+                                   _ completion: @escaping ([HKQuantitySample]) -> Void) {
+        let type = HKQuantityType(.heartRate)
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [.strictStartDate])
+        let query = HKSampleQuery(sampleType: type, predicate: predicate,
+                                  limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, _ in
+            completion(samples as? [HKQuantitySample] ?? [])
+        }
+        healthStore.execute(query)
+    }
+
+    // The single most recent restingHeartRate sample — the fallback when no
+    // overnight window is available.
+    private func _mostRecentRestingHR(_ completion: @escaping ([String: Any]?) -> Void) {
         let type = HKQuantityType(.restingHeartRate)
         let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
         let query = HKSampleQuery(sampleType: type, predicate: nil, limit: 1, sortDescriptors: [sort]) { _, samples, _ in
             guard let sample = samples?.first as? HKQuantitySample else {
-                DispatchQueue.main.async { completion(nil) }
+                completion(nil)
                 return
             }
             let bpm = sample.quantity.doubleValue(for: .count().unitDivided(by: .minute()))
-            DispatchQueue.main.async {
-                completion(["bpm": bpm, "timestamp": sample.endDate.timeIntervalSince1970])
-            }
+            completion([
+                "bpm": bpm,
+                "timestamp": sample.endDate.timeIntervalSince1970,
+                "source": "recent",
+            ])
         }
         healthStore.execute(query)
     }
@@ -1655,4 +1937,171 @@ final class NoGateEngine: GateEngineProtocol {
     func tick(phase: String, bpm: Double, speak: (String) -> Void) -> Bool { true }
     func exitCue(_ phase: String) -> String? { nil }
     func statusPayload(bpm: Double) -> [String: Any] { [:] }
+}
+
+// MARK: - Pure, HealthKit-/engine-free logic (unit-tested in RunnerTests)
+
+/// Overnight-window math for the bed HRV / bed HR readings, with no HealthKit
+/// or I/O dependency so it is unit-testable on the simulator (where HealthKit
+/// is unavailable). The caller maps HKCategorySample → [Segment] and computes
+/// each candidate night's local time-of-day midpoint (needs Calendar/timezone);
+/// everything else — clustering, night selection, and the central-tendency
+/// math — lives here.
+///
+/// A "night" is the most recent cluster that (1) holds at least `minAsleep`
+/// hours of actual sleep AND (2) falls within the user's normal sleeping hours,
+/// inferred from the trailing history's typical sleep midpoint. This rejects
+/// short naps (rule 1) and long daytime naps (rule 2) from being mistaken for
+/// the night. With too little history the inference falls back to a default
+/// overnight band centered on `defaultMidpointTOD`.
+enum OvernightMath {
+    struct Segment {
+        let start: Date
+        let end: Date
+        let isAsleep: Bool
+    }
+    struct Night: Equatable {
+        let sleepOnset: Date     // first asleep start (a Night always has sleep)
+        let bedEnd: Date         // last segment end — out of bed
+        let asleepSeconds: Double // total asleep time (overlaps merged)
+    }
+    struct ScoredNight: Equatable {
+        let night: Night
+        let midpointTOD: Double  // local seconds-since-midnight of the sleep midpoint
+    }
+
+    private static let secondsPerDay: Double = 86400
+
+    /// Groups segments into nights: a new night starts whenever the gap from the
+    /// running cluster's end to the next segment's start exceeds `gap`. Input
+    /// need not be sorted. Clusters are returned in chronological order.
+    static func clusters(_ segments: [Segment], gap: TimeInterval = 3600) -> [[Segment]] {
+        let sorted = segments.sorted { $0.start < $1.start }
+        var result: [[Segment]] = []
+        var cur: [Segment] = []
+        var curEnd: Date?
+        for s in sorted {
+            if let e = curEnd, s.start.timeIntervalSince(e) > gap {
+                result.append(cur)
+                cur = []
+                curEnd = nil
+            }
+            cur.append(s)
+            curEnd = max(curEnd ?? s.end, s.end)
+        }
+        if !cur.isEmpty { result.append(cur) }
+        return result
+    }
+
+    /// Builds a Night from one cluster: onset = first asleep start, bedEnd =
+    /// last segment end, asleepSeconds = union duration of the asleep segments
+    /// (overlaps merged, so two sleep-tracking sources can't double-count). Nil
+    /// when the cluster has no asleep segment (e.g. only inBed recorded).
+    static func night(from cluster: [Segment]) -> Night? {
+        let asleep = cluster.filter { $0.isAsleep }
+        guard let onset = asleep.map({ $0.start }).min() else { return nil }
+        return Night(
+            sleepOnset: onset,
+            bedEnd: cluster.map { $0.end }.max() ?? onset,
+            asleepSeconds: unionDuration(asleep.map { (start: $0.start, end: $0.end) }))
+    }
+
+    /// Total covered duration of a set of intervals, with overlaps merged.
+    static func unionDuration(_ intervals: [(start: Date, end: Date)]) -> Double {
+        let sorted = intervals.filter { $0.end > $0.start }.sorted { $0.start < $1.start }
+        guard let first = sorted.first else { return 0 }
+        var total: Double = 0
+        var curStart = first.start
+        var curEnd = first.end
+        for iv in sorted.dropFirst() {
+            if iv.start > curEnd {
+                total += curEnd.timeIntervalSince(curStart)
+                curStart = iv.start
+                curEnd = iv.end
+            } else {
+                curEnd = max(curEnd, iv.end)
+            }
+        }
+        return total + curEnd.timeIntervalSince(curStart)
+    }
+
+    /// Circular mean of times-of-day (seconds in [0, 86400)). Handles the
+    /// midnight wrap (e.g. mean of 23:00 and 01:00 is 00:00). Nil for empty or
+    /// a degenerate antipodal set.
+    static func circularMeanTOD(_ tods: [Double]) -> Double? {
+        guard !tods.isEmpty else { return nil }
+        let twoPi = 2 * Double.pi
+        var sx = 0.0, sy = 0.0
+        for tod in tods {
+            let a = tod / secondsPerDay * twoPi
+            sx += cos(a); sy += sin(a)
+        }
+        guard sx != 0 || sy != 0 else { return nil }
+        var ang = atan2(sy, sx)
+        if ang < 0 { ang += twoPi }
+        return ang / twoPi * secondsPerDay
+    }
+
+    /// Shortest distance between two times-of-day, accounting for the wrap
+    /// (23:30 → 00:30 is one hour). Range [0, 43200].
+    static func circularDistanceTOD(_ a: Double, _ b: Double) -> Double {
+        let d = abs(a - b).truncatingRemainder(dividingBy: secondsPerDay)
+        return min(d, secondsPerDay - d)
+    }
+
+    /// Picks the night for bed HRV / bed HR: the most recent (latest out-of-bed)
+    /// night with ≥ `minAsleep` of sleep whose sleep midpoint is within
+    /// `toleranceTOD` of the user's normal sleep midpoint. Normal midpoint is the
+    /// circular mean of the qualifying nights' midpoints once there are at least
+    /// `minHistoryNights`; before that, a default overnight band centered on
+    /// `defaultMidpointTOD`. Nil when nothing qualifies (caller then falls back
+    /// to the most recent single sample).
+    static func selectNight(
+        _ scored: [ScoredNight],
+        minAsleep: TimeInterval = 3 * 3600,
+        toleranceTOD: Double = 4 * 3600,
+        defaultMidpointTOD: Double = 3 * 3600,   // 03:00 — typical mid-sleep
+        minHistoryNights: Int = 3
+    ) -> Night? {
+        let qualifying = scored.filter { $0.night.asleepSeconds >= minAsleep }
+        guard !qualifying.isEmpty else { return nil }
+        let normalMidpoint = qualifying.count >= minHistoryNights
+            ? (circularMeanTOD(qualifying.map { $0.midpointTOD }) ?? defaultMidpointTOD)
+            : defaultMidpointTOD
+        return qualifying
+            .filter { circularDistanceTOD($0.midpointTOD, normalMidpoint) <= toleranceTOD }
+            .max { $0.night.bedEnd < $1.night.bedEnd }?
+            .night
+    }
+
+    /// Arithmetic mean, or nil for an empty input.
+    static func mean(_ xs: [Double]) -> Double? {
+        guard !xs.isEmpty else { return nil }
+        return xs.reduce(0, +) / Double(xs.count)
+    }
+
+    /// Median, or nil for an empty input. Robust to outlier samples (movement
+    /// artifacts, sleep-onset spikes), so it is preferred over `mean` for the
+    /// spiky, right-skewed SDNN series collected across the in-bed window.
+    static func median(_ xs: [Double]) -> Double? {
+        guard !xs.isEmpty else { return nil }
+        let s = xs.sorted()
+        let n = s.count
+        return n.isMultiple(of: 2) ? (s[n / 2 - 1] + s[n / 2]) / 2 : s[n / 2]
+    }
+}
+
+/// FIFO announcement-queue insertion with BPM-coalescing, pulled out of
+/// WorkoutManager so the rule is unit-testable. A new BPM reading replaces a BPM
+/// already waiting in the queue (latest reading wins) rather than stacking;
+/// everything else appends. Used for both the render queue and the cue queue.
+enum AnnounceQueue {
+    static func enqueue<T>(_ queue: [T], _ incoming: T, isBpm: (T) -> Bool) -> [T] {
+        if isBpm(incoming), let i = queue.firstIndex(where: isBpm) {
+            var q = queue
+            q[i] = incoming
+            return q
+        }
+        return queue + [incoming]
+    }
 }

@@ -1,7 +1,7 @@
 # Defensive Publication — Prior Art Disclosure
 
 **Title:** Heart-rate-recovery-gated rest-interval timing with audio status updates through a consumer earbud
-**Author / discloser:** halfmarble LLC (gerard ziemski, Cofounder | Bioenergetics OS Architect)
+**Author / discloser:** Halfmarble LLC (gerard ziemski, Cofounder | Bioenergetics OS Architect)
 **Effective publication date:** 2026-06-04 (the date this document first became publicly accessible)
 **Status:** Defensive publication. The method described herein is dedicated to the public domain (see *Dedication*, below).
 **Permanent archive (DOI):** <https://doi.org/10.5281/zenodo.20510165>
@@ -23,7 +23,7 @@ This dedication applies **only to the heart-rate-recovery-gated rest-interval me
 - **Does NOT** dedicate, and is expressly carved out from, the applicant's **retained motor-control and bioenergetic biomarker methods** — including motor-timing-variability versus heart-rate-variability dissociation, bilateral strike-asymmetry indexing, and sustainable-intensity-heart-rate estimation from inertial power decay — which are the subject of a separately filed patent application and are **not** dedicated here.
 - **Does NOT** dedicate the applicant's broader **closed-loop therapeutic and sensory-cuing methods** (the subject of ongoing work), which are outside the scope of this document and unaffected by it. This document dedicates only the specific heart-rate-recovery rest-gating method below.
 - **Does NOT** license, assign, or open any **source code**, which is governed separately by its own license.
-- **Does NOT** affect the **SteadyHeartBeat application** as a product, or waive any **trademark, brand, trade dress, or copyright** held by halfmarble LLC.
+- **Does NOT** affect the **SteadyHeartBeat application** as a product, or waive any **trademark, brand, trade dress, or copyright** held by Halfmarble LLC.
 - **Does NOT** dedicate any method not explicitly described here. Methods halfmarble has chosen to retain (including any not yet implemented or disclosed) are outside the scope of this document.
 
 ---
@@ -43,8 +43,8 @@ Enabling detail:
 
 ## Dedication to the public domain (CC0)
 
-To the extent permitted by law, halfmarble LLC dedicates the **method described in this document** to the **public domain** under the [Creative Commons CC0 1.0 Universal Public Domain Dedication](https://creativecommons.org/publicdomain/zero/1.0/). halfmarble waives all patent and other rights it may hold in the described method to the extent necessary to ensure it remains free for anyone to practice. This dedication is irrevocable as to the method described above and does not extend to anything outside the *Scope* section.
+To the extent permitted by law, Halfmarble LLC dedicates the **method described in this document** to the **public domain** under the [Creative Commons CC0 1.0 Universal Public Domain Dedication](https://creativecommons.org/publicdomain/zero/1.0/). halfmarble waives all patent and other rights it may hold in the described method to the extent necessary to ensure it remains free for anyone to practice. This dedication is irrevocable as to the method described above and does not extend to anything outside the *Scope* section.
 
 ---
 
-*halfmarble LLC — [halfmarble.com](https://halfmarble.com) — privacy@halfmarble.com*
+*Halfmarble LLC — [halfmarble.com](https://halfmarble.com) — privacy@halfmarble.com*

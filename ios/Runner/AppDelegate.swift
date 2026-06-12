@@ -112,13 +112,26 @@ import AVFoundation
                 result(nil)
 
             case "speak":
-                let text = (call.arguments as? [String: Any])?["text"] as? String ?? ""
-                WorkoutManager.shared.speak(text: text)
+                let args = call.arguments as? [String: Any]
+                let text = args?["text"] as? String ?? ""
+                let force = args?["force"] as? Bool ?? false
+                WorkoutManager.shared.speak(text: text, force: force)
                 result(nil)
 
             case "stopSpeaking":
                 WorkoutManager.shared.stopSpeaking()
                 result(nil)
+
+            case "listHealthWorkouts":
+                WorkoutManager.shared.listHealthWorkouts { result($0) }
+
+            case "getHeartRateSeries":
+                let args = call.arguments as? [String: Any]
+                let start = args?["startEpoch"] as? Double ?? 0
+                let end = args?["endEpoch"] as? Double ?? 0
+                WorkoutManager.shared.getHeartRateSeries(startEpoch: start, endEpoch: end) {
+                    result($0)
+                }
 
             case "setAnnounceInterval":
                 let seconds = (call.arguments as? [String: Any])?["seconds"] as? Int ?? 15

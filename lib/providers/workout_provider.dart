@@ -8,6 +8,7 @@ import '../services/workout_service.dart';
 import '../services/tts_service.dart';
 import '../services/session_storage_service.dart';
 import '../services/health_profile_store.dart';
+import '../services/health_import_service.dart';
 import '../constants.dart';
 import '../plus_api.dart';
 import '../plus_binding.dart';
@@ -178,7 +179,18 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   // Most recent resting metrics from Apple Watch (null = no Watch data)
   double? recentHrvMs;
   DateTime? recentHrvDate;
+  // How recentHrvMs was derived: 'bed' = mean SDNN across last night's whole
+  // in-bed span (sleep onset → out of bed, awake periods included — the
+  // preferred, comparable resting reading); 'recent' = the single most recent
+  // SDNN sample (fallback when no overnight reading exists). Drives the metric
+  // label ("bed HRV" vs "resting HRV"). Null until first read.
+  String? hrvSource;
   double? recentRestingHrBpm;
+  // How recentRestingHrBpm was derived, mirroring [hrvSource]: 'bed' = mean
+  // heart rate across last night's whole in-bed span ("bed HR"); 'recent' = the
+  // single most recent restingHeartRate sample (fallback). Drives the label
+  // ("bed HR" vs "resting HR"). Null until first read.
+  String? restingHrSource;
   DateTime? recentRestingHrDate;
   double? recentVo2MaxMlPerKgMin;
   DateTime? recentVo2MaxDate;
@@ -650,6 +662,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     final data = await _workout.getRecentHRV();
     if (data != null) {
       recentHrvMs = (data['ms'] as num?)?.toDouble();
+      hrvSource = data['source'] as String?;
       final epochSecs = (data['timestamp'] as num?)?.toDouble();
       recentHrvDate = epochSecs != null
           ? DateTime.fromMillisecondsSinceEpoch((epochSecs * 1000).round())
@@ -662,6 +675,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     final data = await _workout.getRestingHR();
     if (data != null) {
       recentRestingHrBpm = (data['bpm'] as num?)?.toDouble();
+      restingHrSource = data['source'] as String?;
       final epochSecs = (data['timestamp'] as num?)?.toDouble();
       recentRestingHrDate = epochSecs != null
           ? DateTime.fromMillisecondsSinceEpoch((epochSecs * 1000).round())
@@ -823,6 +837,73 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> refreshSessionCount() async {
     sessionCount = await SessionStorageService.count();
     _safeNotify();
+  }
+
+  // ── Apple Health workout import ───────────────────────────────────────────
+
+  /// Workouts stored in Apple Health for the import picker, newest first.
+  /// Returns null when HealthKit access is denied (so the screen can show a
+  /// Settings hint instead of an empty list). Duration filtering is the
+  /// screen's job — the full list comes back so the threshold control
+  /// re-filters without another HealthKit query.
+  Future<List<HealthWorkout>?> listHealthWorkouts() async {
+    final authorized = await _workout.requestAuthorization();
+    if (!authorized) return null;
+    final raw = await _workout.listHealthWorkouts();
+    return raw.map(HealthWorkout.fromMap).toList();
+  }
+
+  /// End-times (epoch seconds, rounded) of all sessions already on disk —
+  /// used to mark Apple Health workouts that are already saved locally so
+  /// they can't be imported twice.
+  Future<Set<int>> existingSessionEndEpochs() async {
+    final sessions = await SessionStorageService.loadAll();
+    final out = <int>{};
+    for (final s in sessions) {
+      final raw = s['endTime'] as String?;
+      if (raw == null) continue;
+      try {
+        out.add(DateTime.parse(raw).millisecondsSinceEpoch ~/ 1000);
+      } catch (_) {}
+    }
+    return out;
+  }
+
+  /// Imports [selected] Apple Health workouts as local sessions: fetches each
+  /// workout's HR samples, rebuilds the session record (current profile zones
+  /// are snapshotted, same as a live save), and writes it to session storage.
+  /// Returns (imported, skipped) — a workout with fewer than 2 HR samples has
+  /// no timeline to rebuild and is skipped.
+  Future<(int, int)> importHealthWorkouts(List<HealthWorkout> selected) async {
+    var imported = 0, skipped = 0;
+    for (final w in selected) {
+      final series = await _workout.getHeartRateSeries(
+        startEpoch: w.start.millisecondsSinceEpoch / 1000,
+        endEpoch: w.end.millisecondsSinceEpoch / 1000,
+      );
+      final session = HealthImportService.buildSession(
+        workout: w,
+        hrTimeline: series,
+        zone1End: zone1End,
+        zone2Start: zone2Start,
+        zone3Start: zone3Start,
+        zone4Start: zone4Start,
+        zone5Start: zone5Start,
+        maxHeartRate: maxHeartRate,
+        age: healthAge,
+      );
+      if (session == null) {
+        skipped++;
+        continue;
+      }
+      if (await SessionStorageService.save(session)) {
+        imported++;
+      } else {
+        skipped++;
+      }
+    }
+    await refreshSessionCount();
+    return (imported, skipped);
   }
 
   Future<void> start() async {
@@ -1135,6 +1216,18 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     _tts.speak('${bpm.round()}');
   }
 
+  /// Immediate spoken feedback after an announcement-related preference change
+  /// (interval, voice, delta, zone coaching): speaks the current BPM through
+  /// the forced path, which bypasses the native BPM cooldown — the change
+  /// usually lands seconds after a regular announcement, exactly when the
+  /// cooldown would otherwise swallow it.
+  void _announcePrefChange() {
+    final bpm = currentBpm;
+    if (bpm != null && state == MonitoringState.running) {
+      _tts.speak('${bpm.round()}', force: true);
+    }
+  }
+
   /// (Re)schedules the mid-workout HR-silence detector. Called from
   /// _onHeartRate on every sample so the timer is continuously pushed out.
   /// If it ever fires, we drop the stale BPM, speak a one-shot alert, and
@@ -1410,10 +1503,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     voiceName = name;
     notifyListeners();
     await savePrefs();
-    final bpm = currentBpm;
-    if (bpm != null && state == MonitoringState.running) {
-      _tts.speak('${bpm.round()}');
-    }
+    _announcePrefChange();
   }
 
   /// English voices installed on this iPhone, best quality first (for the picker).
@@ -1436,6 +1526,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
       // without await the futures could be issued out of order if the caller
       // rapidly toggles the picker.
       await _workout.setAnnounceInterval(seconds);
+      _announcePrefChange();
     }
   }
 
@@ -1443,6 +1534,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     deltaAnnounceEnabled = enabled;
     notifyListeners();
     savePrefs();
+    _announcePrefChange();
   }
 
   void setWelcomeEnabled(bool enabled) {
@@ -1468,6 +1560,9 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     savePrefs();
     if (state == MonitoringState.running) _pushZoneConfig();
+    // Channel calls are FIFO, so the forced announce lands after the new zone
+    // config and speaks with the new coaching setting applied.
+    _announcePrefChange();
   }
 
   /// Target training zone for coaching nudges: 0 = none (just name the zone),
@@ -1477,6 +1572,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     savePrefs();
     if (state == MonitoringState.running) _pushZoneConfig();
+    _announcePrefChange();
   }
 
   /// Pushes the current zone boundaries + coaching settings to native. Called at
@@ -1560,6 +1656,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     deltaThreshold = bpm;
     notifyListeners();
     savePrefs();
+    _announcePrefChange();
   }
 
   void setWorkoutType(WorkoutType type) {
