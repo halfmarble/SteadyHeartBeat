@@ -135,6 +135,34 @@ final class OvernightMathTests: XCTestCase {
         XCTAssertNil(OvernightMath.selectNight([scored(bedEndMin: 60, asleepH: 2, midTODh: 3)]))
     }
 
+    // ── qualifyingNights (daily-trends series) ───────────────────────────────────
+
+    func testQualifyingNightsReturnsAllOldestFirst() {
+        let nights = OvernightMath.qualifyingNights([
+            scored(bedEndMin: 200, asleepH: 7, midTODh: 3),
+            scored(bedEndMin: 10, asleepH: 7, midTODh: 3),
+            scored(bedEndMin: 100, asleepH: 7, midTODh: 3),
+        ])
+        XCTAssertEqual(nights.map { $0.bedEnd }, [t(10), t(100), t(200)])
+    }
+
+    func testQualifyingNightsExcludesNapsAndOddHours() {
+        // Three night-time nights set normal ~3 AM; a long afternoon nap and a
+        // short night are both dropped.
+        let kept = OvernightMath.qualifyingNights([
+            scored(bedEndMin: 10, asleepH: 7, midTODh: 3),
+            scored(bedEndMin: 20, asleepH: 7, midTODh: 3),
+            scored(bedEndMin: 30, asleepH: 7, midTODh: 3),
+            scored(bedEndMin: 40, asleepH: 2, midTODh: 3),   // too short
+            scored(bedEndMin: 50, asleepH: 3.5, midTODh: 15), // daytime
+        ])
+        XCTAssertEqual(kept.map { $0.bedEnd }, [t(10), t(20), t(30)])
+    }
+
+    func testQualifyingNightsEmpty() {
+        XCTAssertTrue(OvernightMath.qualifyingNights([]).isEmpty)
+    }
+
     // ── mean ─────────────────────────────────────────────────────────────────
 
     func testMeanAverages() {

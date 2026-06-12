@@ -968,6 +968,10 @@ class _PreWorkoutMetrics extends StatelessWidget {
         age: ageLabel(manual, provider.recentHrvDate),
         ageColor: ageTint(manual, provider.hrvStale),
         infoKey: overnight ? 'bedHrv' : 'restingHrv',
+        // Tap the bed HRV value → daily-trends chart (SHB+; teaser when locked).
+        onValueTap: overnight
+            ? () => provider.plus.openTrends(context, 'bedHrv')
+            : null,
       ));
     }
 
@@ -1049,13 +1053,17 @@ class _Metric extends StatelessWidget {
     required this.age,
     this.ageColor = kTextFaint,
     this.infoKey,
+    this.onValueTap,
   });
   final String label, prefix, value, unit, age;
   final Color color;
   final Color ageColor;
-  // Key into kMetricExplainers; null = no ⓘ affordance. The ⓘ is a distinct
-  // tap target (the explainer), separate from any future tap-to-chart entry.
+  // Key into kMetricExplainers; null = no ⓘ affordance. The ⓘ (on the label) is
+  // a distinct tap target from [onValueTap] (the value → daily-trends chart).
   final String? infoKey;
+  // Tapping the value opens the metric's daily-trends chart (SHB+), via the
+  // plus plug point — a teaser when locked. Null = value not tappable.
+  final VoidCallback? onValueTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1081,31 +1089,38 @@ class _Metric extends StatelessWidget {
               ),
             ),
           );
+    final Widget valueText = RichText(
+      text: TextSpan(children: [
+        TextSpan(
+          text: '$prefix  ',
+          style: TextStyle(
+            color: color.withAlpha(0xAA),
+            fontSize: kFontCaption,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.4,
+          ),
+        ),
+        TextSpan(
+          text: value,
+          style: TextStyle(color: color, fontSize: kFontDisplay, fontWeight: FontWeight.w200),
+        ),
+        TextSpan(
+          text: '  $unit',
+          style: TextStyle(color: color.withAlpha(0xAA), fontSize: kFontSM),
+        ),
+      ]),
+    );
     return Column(
       children: [
         labelRow,
         const SizedBox(height: 4),
-        RichText(
-          text: TextSpan(children: [
-            TextSpan(
-              text: '$prefix  ',
-              style: TextStyle(
-                color: color.withAlpha(0xAA),
-                fontSize: kFontCaption,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.4,
+        onValueTap == null
+            ? valueText
+            : GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onValueTap,
+                child: valueText,
               ),
-            ),
-            TextSpan(
-              text: value,
-              style: TextStyle(color: color, fontSize: kFontDisplay, fontWeight: FontWeight.w200),
-            ),
-            TextSpan(
-              text: '  $unit',
-              style: TextStyle(color: color.withAlpha(0xAA), fontSize: kFontSM),
-            ),
-          ]),
-        ),
         if (age.isNotEmpty)
           Text(age, style: TextStyle(color: ageColor, fontSize: kFontSM)),
       ],

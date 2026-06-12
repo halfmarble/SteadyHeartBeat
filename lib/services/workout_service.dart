@@ -182,6 +182,17 @@ class WorkoutService {
         .toList();
   }
 
+  /// One median-SDNN bed-HRV point per qualifying night over the last [days],
+  /// oldest first. Each entry: date (epoch seconds, out of bed), ms (median
+  /// SDNN), count (samples). Drives the SHB+ daily-trends chart.
+  Future<List<Map<String, dynamic>>> getBedHrvHistory({int days = 30}) async {
+    final result = await _method.invokeMethod<List<dynamic>>(
+        'getBedHrvHistory', {'days': days});
+    return (result ?? const [])
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+  }
+
   /// Returns the `airpods.pro` SF Symbol rendered to PNG bytes at the given pointSize,
   /// white on transparent background. Returns null if the symbol is unavailable.
   Future<Uint8List?> getAirPodsIcon({double pointSize = 120}) async {

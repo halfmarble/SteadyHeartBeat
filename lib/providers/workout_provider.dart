@@ -841,6 +841,11 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   // ── Apple Health workout import ───────────────────────────────────────────
 
+  /// Bed-HRV daily history (median SDNN per qualifying night) for the SHB+
+  /// trends chart. Each entry: date (epoch seconds), ms, count. Oldest first.
+  Future<List<Map<String, dynamic>>> bedHrvHistory({int days = 30}) =>
+      _workout.getBedHrvHistory(days: days);
+
   /// Workouts stored in Apple Health for the import picker, newest first.
   /// Returns null when HealthKit access is denied (so the screen can show a
   /// Settings hint instead of an empty list). Duration filtering is the

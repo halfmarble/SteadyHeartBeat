@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'widgets/plus_teaser.dart';
 
 /// Core-side surface of the SHB+ paid module.
 ///
@@ -39,6 +40,12 @@ abstract class PlusFeatures {
   /// Replacement for the boxing round banner during a module-driven phase,
   /// or null to render the standard banner.
   Widget? roundBanner(BuildContext context, String phase);
+
+  /// Opens the daily-trends view for [metricKey] — the SHB+ chart when the
+  /// upgrade is unlocked, or an upgrade teaser otherwise. Called from the home
+  /// readiness snapshot when the user taps a metric value (a distinct affordance
+  /// from the ⓘ explainer on the metric's label).
+  void openTrends(BuildContext context, String metricKey);
 }
 
 /// The free-core binding: no paid module compiled in. Every member is inert,
@@ -62,4 +69,7 @@ class NoPlusFeatures implements PlusFeatures {
   Widget? preferencesSection(BuildContext context) => null;
   @override
   Widget? roundBanner(BuildContext context, String phase) => null;
+  @override
+  void openTrends(BuildContext context, String metricKey) =>
+      showPlusTeaser(context);
 }

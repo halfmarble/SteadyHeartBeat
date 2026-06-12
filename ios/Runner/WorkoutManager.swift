@@ -1539,9 +1539,18 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     // OvernightMath pick. Nil when no qualifying night — the caller then falls
     // back to a single recent sample.
     private func _selectSleepNight(_ completion: @escaping (OvernightMath.Night?) -> Void) {
+        _scoredNights(days: 15) { completion(OvernightMath.selectNight($0)) }
+    }
+
+    // Queries `days` of sleepAnalysis, clusters into nights, and stamps each
+    // night's local time-of-day sleep-midpoint (the one piece OvernightMath
+    // can't do — it needs the calendar/timezone). Shared by today's bed reading
+    // (_selectSleepNight) and the daily-trends history (getBedHrvHistory).
+    private func _scoredNights(days: Int,
+                               _ completion: @escaping ([OvernightMath.ScoredNight]) -> Void) {
         let type = HKCategoryType(.sleepAnalysis)
         let end = Date()
-        let start = end.addingTimeInterval(-15 * 24 * 3600)
+        let start = end.addingTimeInterval(-Double(max(1, days)) * 24 * 3600)
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
         let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
         let query = HKSampleQuery(sampleType: type, predicate: predicate,
@@ -1555,8 +1564,6 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
                 }
                 return OvernightMath.Segment(start: s.startDate, end: s.endDate, isAsleep: asleep)
             }
-            // Stamp each night's sleep-midpoint as local seconds-since-midnight —
-            // the one piece OvernightMath can't do (it needs the calendar/timezone).
             let cal = Calendar.current
             let scored: [OvernightMath.ScoredNight] = OvernightMath.clusters(segs).compactMap { cluster in
                 guard let night = OvernightMath.night(from: cluster) else { return nil }
@@ -1565,9 +1572,43 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
                 let tod = mid.timeIntervalSince(cal.startOfDay(for: mid))
                 return OvernightMath.ScoredNight(night: night, midpointTOD: tod)
             }
-            completion(OvernightMath.selectNight(scored))
+            completion(scored)
         }
         healthStore.execute(query)
+    }
+
+    // MARK: - Bed HRV daily history (SHB+ trends chart)
+
+    // One median-SDNN point per qualifying night over the last `days`, oldest
+    // first, as [{date: out-of-bed epoch, ms, count}]. Reuses the same night
+    // selection (≥3 h sleep within normal hours) as today's bed HRV, then runs a
+    // single SDNN query across the whole span and buckets the samples per night.
+    func getBedHrvHistory(days: Int, completion: @escaping ([[String: Any]]) -> Void) {
+        _scoredNights(days: days) { [weak self] scored in
+            guard let self = self else { DispatchQueue.main.async { completion([]) }; return }
+            let nights = OvernightMath.qualifyingNights(scored)
+            guard let first = nights.first, let last = nights.last else {
+                DispatchQueue.main.async { completion([]) }
+                return
+            }
+            self._hrvSamples(start: first.sleepOnset, end: last.bedEnd) { samples in
+                let unit = HKUnit(from: "ms")
+                let pts = samples.map { (date: $0.startDate, ms: $0.quantity.doubleValue(for: unit)) }
+                var out: [[String: Any]] = []
+                for night in nights {
+                    let vals = pts.filter { $0.date >= night.sleepOnset && $0.date < night.bedEnd }
+                        .map { $0.ms }
+                    if let median = OvernightMath.median(vals) {
+                        out.append([
+                            "date": night.bedEnd.timeIntervalSince1970,
+                            "ms": median,
+                            "count": vals.count,
+                        ])
+                    }
+                }
+                DispatchQueue.main.async { completion(out) }
+            }
+        }
     }
 
     // Raw SDNN samples over [start, end]; averaging is done by OvernightMath.
@@ -2049,29 +2090,43 @@ enum OvernightMath {
         return min(d, secondsPerDay - d)
     }
 
-    /// Picks the night for bed HRV / bed HR: the most recent (latest out-of-bed)
-    /// night with ≥ `minAsleep` of sleep whose sleep midpoint is within
-    /// `toleranceTOD` of the user's normal sleep midpoint. Normal midpoint is the
-    /// circular mean of the qualifying nights' midpoints once there are at least
-    /// `minHistoryNights`; before that, a default overnight band centered on
-    /// `defaultMidpointTOD`. Nil when nothing qualifies (caller then falls back
-    /// to the most recent single sample).
-    static func selectNight(
+    /// All nights that qualify for bed HRV / bed HR — ≥ `minAsleep` of sleep AND
+    /// a sleep midpoint within `toleranceTOD` of the user's normal sleep midpoint
+    /// — sorted oldest-first. Normal midpoint is the circular mean of the
+    /// long-enough nights' midpoints once there are at least `minHistoryNights`;
+    /// before that, a default overnight band centered on `defaultMidpointTOD`.
+    /// This is the basis for the daily-trends series; [selectNight] takes its
+    /// most recent entry.
+    static func qualifyingNights(
         _ scored: [ScoredNight],
         minAsleep: TimeInterval = 3 * 3600,
         toleranceTOD: Double = 4 * 3600,
         defaultMidpointTOD: Double = 3 * 3600,   // 03:00 — typical mid-sleep
         minHistoryNights: Int = 3
-    ) -> Night? {
-        let qualifying = scored.filter { $0.night.asleepSeconds >= minAsleep }
-        guard !qualifying.isEmpty else { return nil }
-        let normalMidpoint = qualifying.count >= minHistoryNights
-            ? (circularMeanTOD(qualifying.map { $0.midpointTOD }) ?? defaultMidpointTOD)
+    ) -> [Night] {
+        let longEnough = scored.filter { $0.night.asleepSeconds >= minAsleep }
+        guard !longEnough.isEmpty else { return [] }
+        let normalMidpoint = longEnough.count >= minHistoryNights
+            ? (circularMeanTOD(longEnough.map { $0.midpointTOD }) ?? defaultMidpointTOD)
             : defaultMidpointTOD
-        return qualifying
+        return longEnough
             .filter { circularDistanceTOD($0.midpointTOD, normalMidpoint) <= toleranceTOD }
-            .max { $0.night.bedEnd < $1.night.bedEnd }?
-            .night
+            .map { $0.night }
+            .sorted { $0.bedEnd < $1.bedEnd }
+    }
+
+    /// The single night for today's bed HRV / bed HR: the most recent qualifying
+    /// night. Nil when nothing qualifies (caller falls back to a recent sample).
+    static func selectNight(
+        _ scored: [ScoredNight],
+        minAsleep: TimeInterval = 3 * 3600,
+        toleranceTOD: Double = 4 * 3600,
+        defaultMidpointTOD: Double = 3 * 3600,
+        minHistoryNights: Int = 3
+    ) -> Night? {
+        qualifyingNights(scored, minAsleep: minAsleep, toleranceTOD: toleranceTOD,
+                         defaultMidpointTOD: defaultMidpointTOD,
+                         minHistoryNights: minHistoryNights).last
     }
 
     /// Arithmetic mean, or nil for an empty input.
