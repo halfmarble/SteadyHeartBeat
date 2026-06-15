@@ -6,7 +6,7 @@ iOS app that reads heart rate from AirPods with heart rate monitoring via Health
 
 Built by [Halfmarble LLC](https://halfmarble.com) as a proof of concept for ambient on-device biometric feedback, and as a prior art vehicle for the consumer-earbud-as-closed-loop-biometric-sensor pipeline. It was also a testbed for what it actually takes to keep user data protected and never released — to prove we can deliver on the privacy we promise.
 
-**Prior art published: 2026-06-04** — two public-domain defensive publications: **[PRIOR_ART_EARBUD_CLOSED_LOOP.md](PRIOR_ART_EARBUD_CLOSED_LOOP.md)** and **[PRIOR_ART_REST_GATING.md](PRIOR_ART_REST_GATING.md)**.
+**Prior art published: 2026-06-04** — two public-domain defensive publications, in the Technical Disclosure Commons (Defensive Publications Series): **[PRIOR_ART_EARBUD_CLOSED_LOOP.md](PRIOR_ART_EARBUD_CLOSED_LOOP.md)** ([dpubs_series/10440](https://www.tdcommons.org/dpubs_series/10440)) and **[PRIOR_ART_REST_GATING.md](PRIOR_ART_REST_GATING.md)** ([dpubs_series/10441](https://www.tdcommons.org/dpubs_series/10441)).
 
 ---
 
@@ -99,7 +99,7 @@ All computation is on-device. No data leaves the iPhone — halfmarble never rec
 
 These are deliberately **independent** decisions. A change to one does not affect the others:
 
-1. **Prior art (public domain).** Selected *methods and techniques* are disclosed as dated, public-domain **defensive publications** — **[PRIOR_ART_EARBUD_CLOSED_LOOP.md](PRIOR_ART_EARBUD_CLOSED_LOOP.md)** and **[PRIOR_ART_REST_GATING.md](PRIOR_ART_REST_GATING.md)** (effective 2026-06-04). Publishing them as prior art keeps them freely practicable by anyone and prevents third parties from patenting them. That is their only purpose — they do **not** give away the source code or the application.
+1. **Prior art (public domain).** Selected *methods and techniques* are disclosed as dated, public-domain **defensive publications** — **[PRIOR_ART_EARBUD_CLOSED_LOOP.md](PRIOR_ART_EARBUD_CLOSED_LOOP.md)** and **[PRIOR_ART_REST_GATING.md](PRIOR_ART_REST_GATING.md)** (effective 2026-06-04; published in the Technical Disclosure Commons at [dpubs_series/10440](https://www.tdcommons.org/dpubs_series/10440) and [dpubs_series/10441](https://www.tdcommons.org/dpubs_series/10441)). Publishing them as prior art keeps them freely practicable by anyone and prevents third parties from patenting them. That is their only purpose — they do **not** give away the source code or the application.
 2. **Code license.** The *source code* is governed separately by **[LICENSE](LICENSE)**, and may be relicensed in future without affecting the prior-art dedication above.
 3. **The application.** *SteadyHeartBeat the product* — its distribution, pricing, and availability — is a halfmarble product decision, independent of the two layers above.
 
