@@ -20,14 +20,24 @@ const Map<String, MetricExplainer> kMetricExplainers = {
     'Bed HRV is the typical (median) heart-rate variability across your whole '
         'night in bed — from when you fall asleep until you get out of bed, '
         'brief wake-ups included.',
-    'We take the median across the full in-bed window so a few restless, '
-        'high-movement minutes don’t skew the number.',
+    'Taking the median across the full in-bed window is deliberately robust to '
+        'the watch mislabelling movement as “awake” (common with restless or '
+        'dream-enacting sleep), so real sleep isn’t dropped — at the cost of a '
+        'coarser number than one restricted to deep sleep. Read it as a '
+        'night-to-night trend, not a precise value.',
     'Watch your own baseline over time — the trend matters more than any single '
-        'night, and there is no universal “good” value. Night to night, '
-        'a higher reading generally tracks with feeling more recovered.',
-    'If you track HRV in another app, expect a different number: many apps use a '
-        'different variability measure (rMSSD) over only the deepest part of '
-        'sleep, while bed HRV uses SDNN across your full night.',
+        'night, and there is no universal “good” value. A higher reading often '
+        'tracks with feeling more recovered, but HRV isn’t one-directional — it '
+        'can also rise with hard strain or illness — so weigh it over several '
+        'nights and against how you feel, never as a single-night verdict.',
+    'If you track HRV in another app, expect a different number: many use a '
+        'different measure (rMSSD) over only the deepest part of sleep, while bed '
+        'HRV uses SDNN across your full night.',
+    'Heart-rate variability from a consumer watch is a rough guide, not a lab '
+        'measurement. It is less reliable than heart rate, and the SDNN figure '
+        'has not been independently validated against clinical equipment or in '
+        'any particular health condition — so follow your own trend over time '
+        'rather than reading much into any single value.',
     'This is a general wellness reading, not a medical measurement.',
   ]),
   'restingHrv': MetricExplainer('resting HRV', [
@@ -36,6 +46,11 @@ const Map<String, MetricExplainer> kMetricExplainers = {
     'Once your watch records variability across a night in bed, this becomes '
         '“bed HRV”: the median across your whole night, a steadier '
         'number to track.',
+    'Heart-rate variability from a consumer watch is a rough guide, not a lab '
+        'measurement. It is less reliable than heart rate, and the SDNN figure '
+        'has not been independently validated against clinical equipment or in '
+        'any particular health condition — watch your own trend, not the exact '
+        'number.',
     'This is a general wellness reading, not a medical measurement.',
   ]),
   'bedHr': MetricExplainer('bed HR', [
@@ -66,6 +81,9 @@ const Map<String, MetricExplainer> kMetricExplainers = {
         'outdoor workout.',
     'A higher value generally reflects better aerobic fitness for your age and '
         'sex.',
+    'Apple’s figure is an estimate from your everyday workouts, not a lab test — '
+        'it can be off by several points and is least reliable at the very high '
+        'and very low ends of fitness, so follow the trend, not the exact number.',
     'This is a general wellness estimate, not a medical measurement.',
   ]),
 };

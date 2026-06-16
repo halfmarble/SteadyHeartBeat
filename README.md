@@ -16,14 +16,12 @@ Built by [Halfmarble LLC](https://halfmarble.com) as a proof of concept for ambi
 - **Live chart** — full-session HR history, chart fills the screen, auto-scales to the session's HR range. Chart time axis is at least 15 minutes and grows as the session continues.
 - **5-zone color gradient** — the HR line is colored green (Zone 1 recovery) → chartreuse (Zone 2 fat burn) → yellow (Zone 3 aerobic) → deep orange (Zone 4 anaerobic) → red (Zone 5 maximum effort), with quadratic easing in the warning zone. Zone boundaries are computed automatically from your date of birth via the Tanaka formula (maxHR = 208 − 0.7 × age) read from Apple Health.
 - **Zone coaching** — optionally name your training zone in each announcement ("142, zone 4"), and with a target zone set, append a steering nudge — "push" when you're below it, "ease off" when above. Composed on-device in the native layer so it keeps coaching while backgrounded with the screen off. Requires heart-rate zones (age or date of birth configured); falls back to the bare number otherwise.
-- **Pre-workout readiness snapshot** — shows **bed HRV** and **bed HR** (the median / average across your last night in bed) and **VO₂ max** from Apple Health (when available), color-coded against **age-banded reference norms** (see [References](#references)), with data-freshness timestamps and a one-tap plain-language explainer for each number. The night is the most recent sleep of at least 3 hours that falls within your normal sleeping hours.
+- **Pre-workout readiness snapshot** — shows resting HR, HRV (SDNN), and VO₂ max from Apple Watch (when available), color-coded against **age-banded reference norms** (see [References](#references)), with data freshness timestamps.
 - **Live metrics overlay** — current BPM centered on the chart with calories (yellow, right) and breathing rate (blue, left) as subscripts. In portrait, the BPM number drifts 1 px per sensor sample away from the heart rate line. In landscape, it's always dead center.
 - **Workout type** — select Boxing 🥊, Cycling 🚴, Running 🏃, or Other before starting. Sets the correct `HKWorkoutActivityType` for Apple Fitness rings. Saving the finished workout to Apple Health is on by default and can be turned off in Preferences (**Apple Health → Save workouts to Apple Health**) — with it off, the workout is discarded and never leaves the device.
 - **Boxing round timer** — for boxing workouts, an optional round timer with amateur (3 × 2:00) and pro (12 × 3:00) presets, plus configurable round length, rest length, and round count. Calls rounds and rest aloud through the same voice channel, with an optional "ten seconds" warning before each round ends.
 - **Post-workout summary** — max HR, average HR (time-weighted), duration, calories, effort score (avg/maxHR × 100), zone time distribution, and a 1-BPM resolution HR histogram colored by zone.
 - **Session history** — every completed session is saved as JSON to the app's Documents directory. Tap the clock icon in the app bar to browse past sessions with mini histograms.
-- **Import from Apple Health** — rebuild sessions from past Apple Health workouts (e.g. ones recorded on an Apple Watch, or lost from this device): pick the workouts to import with an adjustable minimum-duration filter, and each is reconstructed with its heart-rate timeline, zones, and stats.
-- **Your data, exportable and erasable** — export a complete, readable copy of your sessions and health profile to keep or share, or delete everything stored on the device — both from **Preferences → Your data**. Nothing is ever uploaded; data leaves only when you tap the share sheet yourself.
 - **Screen wakelock** — screen stays on during monitoring, returns to normal auto-lock when stopped.
 
 ---
@@ -32,22 +30,22 @@ Built by [Halfmarble LLC](https://halfmarble.com) as a proof of concept for ambi
 
 <table>
   <tr>
-    <td align="center" width="33%"><img src="assets/screenshots/IMG_8735.PNG" alt="Home screen with pre-workout readiness snapshot and workout selector"><br><sub>Pre-workout readiness — bed HRV, bed HR, VO₂ max — then pick a workout type</sub></td>
-    <td align="center" width="33%"><img src="assets/screenshots/IMG_8755.PNG" alt="Live heart rate read aloud, large and centered on the full-session chart"><br><sub>Your heart rate — large, zone-colored, and read aloud as you train</sub></td>
-    <td align="center" width="33%"><img src="assets/screenshots/IMG_8736.PNG" alt="Session history with mini zone-colored heart-rate histograms"><br><sub>Every finished workout, with a mini zone-colored histogram</sub></td>
-  </tr>
-  <tr>
-    <td align="center" width="33%"><img src="assets/screenshots/IMG_8750.PNG" alt="Zone coaching with a target zone selected"><br><sub>Set a target zone and hear "push" / "ease off" coaching as you train</sub></td>
-    <td align="center" width="33%"><img src="assets/screenshots/IMG_8749.PNG" alt="Boxing round timer with presets, configurable rounds, rest, and ten-second warning"><br><sub>Boxing round timer — amateur/pro presets, rounds, rest, and a "ten seconds" warning</sub></td>
-    <td align="center" width="33%"><img src="assets/screenshots/IMG_8757.PNG" alt="Post-workout summary with stats and time-in-zones"><br><sub>Post-workout summary — max/avg HR, effort, and time in each zone</sub></td>
+    <td align="center" width="33%"><img src="assets/screenshots/IMG_8601.PNG" alt="Home screen with pre-workout readiness snapshot and workout selector"><br><sub>Pre-workout readiness — resting HRV, resting HR, VO₂ max — then pick a workout type</sub></td>
+    <td align="center" width="33%"><img src="assets/screenshots/IMG_8604.PNG" alt="Zone coaching with a target zone selected"><br><sub>Set a target zone and hear "push" / "ease off" coaching as you train</sub></td>
+    <td align="center" width="33%"><img src="assets/screenshots/IMG_8603.PNG" alt="Boxing round timer with configurable rounds, rest, and ten-second warning"><br><sub>Boxing round timer — amateur/pro presets, configurable rounds, rest, and "ten seconds" warning</sub></td>
   </tr>
 </table>
 
-The full-session HR chart fills the screen, colored by training zone (green recovery → red maximum effort) — turn the phone landscape:
+The full-session HR chart fills the screen, colored by training zone (green recovery → red maximum effort) — turn the phone landscape. Below, the same hike recorded on two people:
 
 <p align="center">
-  <img width="760" src="assets/screenshots/IMG_8738.PNG" alt="Landscape heart-rate chart from a boxing session, zone-colored, reaching Zone 5"><br>
-  <sub>A boxing session — heart rate across rounds, zone-colored (max 142, avg 110, 33 min)</sub>
+  <img width="760" src="assets/screenshots/IMG_8632.PNG" alt="Landscape heart-rate chart from a real hike with a higher-intensity profile reaching Zone 5"><br>
+  <sub>A higher-intensity profile — sustained Zone 4 with Zone 5 peaks (max 150, avg 131)</sub>
+</p>
+
+<p align="center">
+  <img width="760" src="assets/screenshots/IMG_8645.PNG" alt="Landscape heart-rate chart from the same hike showing a long aerobic effort bookended by two climbs"><br>
+  <sub>A long aerobic effort bookended by two climbs (max 128, avg 96, over two hours)</sub>
 </p>
 
 ---
@@ -99,7 +97,7 @@ All computation is on-device. No data leaves the iPhone — halfmarble never rec
 
 These are deliberately **independent** decisions. A change to one does not affect the others:
 
-1. **Prior art (public domain).** Selected *methods and techniques* are disclosed as dated, public-domain **defensive publications** — **[PRIOR_ART_EARBUD_CLOSED_LOOP.md](PRIOR_ART_EARBUD_CLOSED_LOOP.md)** and **[PRIOR_ART_REST_GATING.md](PRIOR_ART_REST_GATING.md)** (effective 2026-06-04; published in the Technical Disclosure Commons at [dpubs_series/10440](https://www.tdcommons.org/dpubs_series/10440) and [dpubs_series/10441](https://www.tdcommons.org/dpubs_series/10441)). Publishing them as prior art keeps them freely practicable by anyone and prevents third parties from patenting them. That is their only purpose — they do **not** give away the source code or the application.
+1. **Prior art (public domain).** Selected *methods and techniques* are disclosed as dated, public-domain **defensive publications** — **[PRIOR_ART_EARBUD_CLOSED_LOOP.md](PRIOR_ART_EARBUD_CLOSED_LOOP.md)** and **[PRIOR_ART_REST_GATING.md](PRIOR_ART_REST_GATING.md)** (effective 2026-06-04; also published in the Technical Disclosure Commons at [dpubs_series/10440](https://www.tdcommons.org/dpubs_series/10440) and [dpubs_series/10441](https://www.tdcommons.org/dpubs_series/10441) for examiner-database findability). Publishing them as prior art keeps them freely practicable by anyone and prevents third parties from patenting them. That is their only purpose — they do **not** give away the source code or the application.
 2. **Code license.** The *source code* is governed separately by **[LICENSE](LICENSE)**, and may be relicensed in future without affecting the prior-art dedication above.
 3. **The application.** *SteadyHeartBeat the product* — its distribution, pricing, and availability — is a halfmarble product decision, independent of the two layers above.
 
@@ -127,6 +125,7 @@ All physiological thresholds are deterministic and traceable to published scienc
 - **Max heart rate / zones** — Tanaka formula, `maxHR = 208 − 0.7 × age`. Tanaka H, Monahan KD, Seals DR. *Age-predicted maximal heart rate revisited.* J Am Coll Cardiol. 2001;37(1):153–156. [doi:10.1016/S0735-1097(00)01054-8](https://doi.org/10.1016/S0735-1097%2800%2901054-8)
 - **VO₂ max grading** — age- **and sex-banded** norms from the American College of Sports Medicine / Cooper Institute *Aerobics Center Longitudinal Study* (decade percentiles by sex; "excellent" ≈ 80th, "good" ≈ 60th, "fair" ≈ 40th). Biological sex is read from HealthKit (with a manual override in Preferences); it defaults to men's norms when unknown. ACSM. *ACSM's Guidelines for Exercise Testing and Prescription*, 11th ed. Wolters Kluwer; 2021.
 - **Resting HRV (SDNN) grading** — age-banded short-term reference ranges (age-only; SDNN sex differences are small and inconsistent). Sammito S, Böckelmann I. *Reference values for time- and frequency-domain heart rate variability measures.* Heart Rhythm. 2016; and short-term (5-min) HRV reference ranges from the **Multi-Ethnic Study of Atherosclerosis (MESA)**. [PMC5010946](https://pmc.ncbi.nlm.nih.gov/articles/PMC5010946/)
+  - *Measurement-validity caveat:* consumer-wearable HRV is supported only at the **device-class** level. It is markedly less reliable than heart rate; the reference ranges above were **not** derived from Apple Watch; validated wearables typically report **rMSSD**, not the **SDNN** Apple exposes; and no study has validated Apple Watch HRV specifically, nor in a Parkinson's/RBD cohort. Treat the grade as a coarse **within-person trend**, not a validated readout.
 
 ---
 

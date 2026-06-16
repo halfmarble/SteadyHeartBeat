@@ -1158,6 +1158,10 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
             HKQuantityType(.distanceWalkingRunning),
             HKQuantityType(.flightsClimbed),
             HKQuantityType(.bodyMass),
+            HKQuantityType(.appleSleepingWristTemperature),
+            HKQuantityType(.oxygenSaturation),
+            HKQuantityType(.appleExerciseTime),
+            HKQuantityType(.walkingHeartRateAverage),
             // Sleep windows scope the overnight-HRV average (see getRecentHRV).
             HKCategoryType(.sleepAnalysis),
             HKObjectType.characteristicType(forIdentifier: .dateOfBirth)!,
@@ -1580,23 +1584,59 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     // MARK: - Readiness daily history (SHB+ trends hub)
 
     // Per-night history over the last `days` for the trends hub, as
-    //   { "hrv": [{date, bedMs, sleepMs?}], "hr": [{date, bpm}], "vo2": [{date, value}] }
+    //   { "hrv": [{date, bedMs, sleepMs?}], "hr": [{date, bpm, sleepBpm?}],
+    //     "resp": [{date, brpm}], "temp": [{date, c}], "spo2": [{date, pct}],
+    //     "vo2": [{date, value}],
+    //     "sleep": [{date, kind, inBedSecs, asleepSecs, hrvMs?, hrvN}] }
     // bedMs = median SDNN over the whole in-bed window; sleepMs = median SDNN over
     // the asleep segments only (the lightly-shaded overlay); bpm = mean HR over
-    // the in-bed window. Nights use the same ≥3 h / normal-hours selection as
-    // today's reading. VO₂ max is independent of sleep, so it's always returned.
+    // the in-bed window, sleepBpm = mean HR over the asleep segments only; brpm = mean respiratory rate (breaths/min) over the
+    // in-bed window (often night-only — absent nights are simply omitted).
+    // Nights use the same ≥3 h / normal-hours selection as today's reading.
+    // VO₂ max is independent of sleep, so it's always returned.
     func getReadinessHistory(days: Int, completion: @escaping ([String: Any]) -> Void) {
         _scoredNights(days: days) { [weak self] scored in
             guard let self = self else { DispatchQueue.main.async { completion([:]) }; return }
             let nights = OvernightMath.qualifyingNights(scored)
+            // Every sleep session for the dual bar: qualifying nights tagged
+            // "night", every other scored session (daytime / short) tagged
+            // "nap". Naps reuse the same Night math — only the readiness
+            // selection (qualifyingNights) stays night-only. Read straight off
+            // each Night; no extra HealthKit query. inBedSecs = the in-bed window
+            // span (movement-independent); asleepSecs = union of asleep segments.
+            let sleepEntry: (OvernightMath.Night, String) -> [String: Any] = { n, kind in
+                ["date": n.bedEnd.timeIntervalSince1970,
+                 "kind": kind,
+                 "inBedSecs": n.bedEnd.timeIntervalSince(n.sleepOnset),
+                 "asleepSecs": n.asleepSeconds]
+            }
+            let napSessions = scored.map { $0.night }.filter { !nights.contains($0) }
+            // (session, kind) in display order — nights first, then naps. Drives
+            // both the durations-only fallback and the per-session HRV below.
+            let kinded: [(OvernightMath.Night, String)] =
+                nights.map { ($0, "night") } + napSessions.map { ($0, "nap") }
+            let sleep: [[String: Any]] = kinded.map { sleepEntry($0.0, $0.1) }
+            // HRV fetch span covers every session (naps included), not just nights.
+            let rangeStart = kinded.map { $0.0.sleepOnset }.min()
+            let rangeEnd = kinded.map { $0.0.bedEnd }.max()
             self._vo2History(days: days) { vo2 in
                 guard let first = nights.first, let last = nights.last else {
-                    DispatchQueue.main.async { completion(["hrv": [], "hr": [], "vo2": vo2]) }
+                    DispatchQueue.main.async { completion(["hrv": [], "hr": [], "resp": [], "temp": [], "spo2": [], "vo2": vo2, "sleep": sleep]) }
                     return
                 }
-                self._hrvSamples(start: first.sleepOnset, end: last.bedEnd) { sdnn in
+                self._hrvSamples(start: rangeStart ?? first.sleepOnset, end: rangeEnd ?? last.bedEnd) { sdnn in
                     let msUnit = HKUnit(from: "ms")
                     let sdnnPts = sdnn.map { (date: $0.startDate, ms: $0.quantity.doubleValue(for: msUnit)) }
+                    // Per-session HRV for the sleep series: median SDNN + sample
+                    // count over each session's in-window span (nights AND naps).
+                    // The Dart side gates naps on hrvN before reporting/comparing.
+                    let sleepHrv: [[String: Any]] = kinded.map { (n, kind) in
+                        var e = sleepEntry(n, kind)
+                        let vals = sdnnPts.filter { $0.date >= n.sleepOnset && $0.date < n.bedEnd }.map { $0.ms }
+                        if let med = OvernightMath.median(vals) { e["hrvMs"] = med }
+                        e["hrvN"] = vals.count
+                        return e
+                    }
                     var hrv: [[String: Any]] = []
                     for night in nights {
                         let bedVals = sdnnPts.filter { $0.date >= night.sleepOnset && $0.date < night.bedEnd }.map { $0.ms }
@@ -1606,21 +1646,178 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
                         if let sleep = OvernightMath.median(sleepVals) { e["sleepMs"] = sleep }
                         hrv.append(e)
                     }
-                    self._heartRateAcross(nights: nights) { hrSamples in
-                        let bpmUnit = HKUnit.count().unitDivided(by: .minute())
-                        let hrPts = hrSamples.map { (date: $0.startDate, bpm: $0.quantity.doubleValue(for: bpmUnit)) }
+                    let rateUnit = HKUnit.count().unitDivided(by: .minute())
+                    self._samplesAcross(nights: nights, type: HKQuantityType(.heartRate)) { hrSamples in
+                        let hrPts = hrSamples.map { (date: $0.startDate, v: $0.quantity.doubleValue(for: rateUnit)) }
                         var hr: [[String: Any]] = []
                         for night in nights {
-                            let vals = hrPts.filter { $0.date >= night.sleepOnset && $0.date < night.bedEnd }.map { $0.bpm }
-                            if let mean = OvernightMath.mean(vals) {
-                                hr.append(["date": night.bedEnd.timeIntervalSince1970, "bpm": mean])
+                            let vals = hrPts.filter { $0.date >= night.sleepOnset && $0.date < night.bedEnd }.map { $0.v }
+                            guard let mean = OvernightMath.mean(vals) else { continue }
+                            var e: [String: Any] = ["date": night.bedEnd.timeIntervalSince1970, "bpm": mean]
+                            // Sleep HR: mean over just the asleep segments — a cleaner
+                            // resting signal than the full in-bed window (mirrors sleepMs).
+                            let sleepVals = hrPts.filter { night.isAsleep(at: $0.date) }.map { $0.v }
+                            if let sm = OvernightMath.mean(sleepVals) { e["sleepBpm"] = sm }
+                            hr.append(e)
+                        }
+                        // Bed respiratory rate: mean breaths/min over the in-bed
+                        // window, per night (often night-only — absent nights
+                        // simply don't appear, same as a no-HRV night).
+                        self._samplesAcross(nights: nights, type: HKQuantityType(.respiratoryRate)) { respSamples in
+                            let respPts = respSamples.map { (date: $0.startDate, v: $0.quantity.doubleValue(for: rateUnit)) }
+                            var resp: [[String: Any]] = []
+                            for night in nights {
+                                let vals = respPts.filter { $0.date >= night.sleepOnset && $0.date < night.bedEnd }.map { $0.v }
+                                if let mean = OvernightMath.mean(vals) {
+                                    resp.append(["date": night.bedEnd.timeIntervalSince1970, "brpm": mean])
+                                }
+                            }
+                            // Wrist temperature (°C) — discrete nightly sample(s),
+                            // mean per night; present mainly on newer watches.
+                            self._samplesAcross(nights: nights, type: HKQuantityType(.appleSleepingWristTemperature)) { tempSamples in
+                                let cUnit = HKUnit.degreeCelsius()
+                                let tempPts = tempSamples.map { (date: $0.startDate, v: $0.quantity.doubleValue(for: cUnit)) }
+                                var temp: [[String: Any]] = []
+                                for night in nights {
+                                    let vals = tempPts.filter { $0.date >= night.sleepOnset && $0.date < night.bedEnd }.map { $0.v }
+                                    if let mean = OvernightMath.mean(vals) {
+                                        temp.append(["date": night.bedEnd.timeIntervalSince1970, "c": mean])
+                                    }
+                                }
+                                // Overnight blood oxygen (%) — often absent
+                                // (night-only; disabled on some watches), so
+                                // absent nights just don't appear → empty card.
+                                self._samplesAcross(nights: nights, type: HKQuantityType(.oxygenSaturation)) { spo2Samples in
+                                    let pctUnit = HKUnit.percent()
+                                    let spo2Pts = spo2Samples.map { (date: $0.startDate, v: $0.quantity.doubleValue(for: pctUnit) * 100) }
+                                    var spo2: [[String: Any]] = []
+                                    for night in nights {
+                                        let vals = spo2Pts.filter { $0.date >= night.sleepOnset && $0.date < night.bedEnd }.map { $0.v }
+                                        if let mean = OvernightMath.mean(vals) {
+                                            spo2.append(["date": night.bedEnd.timeIntervalSince1970, "pct": mean])
+                                        }
+                                    }
+                                    DispatchQueue.main.async {
+                                        completion(["hrv": hrv, "hr": hr, "resp": resp, "vo2": vo2, "sleep": sleepHrv, "temp": temp, "spo2": spo2])
+                                    }
+                                }
                             }
                         }
-                        DispatchQueue.main.async { completion(["hrv": hrv, "hr": hr, "vo2": vo2]) }
                     }
                 }
             }
         }
+    }
+
+    // Per-calendar-day activity & heart-rate history over the last `days`, as
+    //   { "steps":[{date,value}], "kcal":[...], "walkKm":[...], "walkHr":[...],
+    //     "restHr":[...], "hrMax":[...], "hrMin":[...], "exMin":[...] }
+    // date = the day's local midnight (epoch seconds). Cumulative sums for
+    // steps/kcal/distance/exercise; daily max & min for heart rate; daily
+    // average for resting & walking HR. Absent days are simply omitted.
+    func getDailyHistory(days: Int, completion: @escaping ([String: Any]) -> Void) {
+        let cal = Calendar.current
+        let anchor = cal.startOfDay(for: Date())
+        guard let start = cal.date(byAdding: .day, value: -(max(1, days) - 1), to: anchor) else {
+            DispatchQueue.main.async { completion([:]) }; return
+        }
+        let interval = DateComponents(day: 1)
+        let now = Date()
+        let group = DispatchGroup()
+        let lock = NSLock()
+        var out: [String: Any] = [:]
+        func record(_ key: String, _ pts: [[String: Any]]) {
+            lock.lock(); out[key] = pts; lock.unlock()
+        }
+        let bpm = HKUnit.count().unitDivided(by: .minute())
+
+        // Cumulative-sum metrics: steps, active calories, walking distance, exercise minutes.
+        let sums: [(String, HKQuantityType, HKUnit)] = [
+            ("steps", HKQuantityType(.stepCount), HKUnit.count()),
+            ("kcal", HKQuantityType(.activeEnergyBurned), HKUnit.kilocalorie()),
+            ("walkKm", HKQuantityType(.distanceWalkingRunning), HKUnit.meterUnit(with: .kilo)),
+            ("exMin", HKQuantityType(.appleExerciseTime), HKUnit.minute()),
+        ]
+        for (key, type, unit) in sums {
+            group.enter()
+            _dailyStats(type: type, options: .cumulativeSum, start: start, anchor: anchor, interval: interval) { stats in
+                var pts: [[String: Any]] = []
+                stats?.enumerateStatistics(from: start, to: now) { stat, _ in
+                    if let q = stat.sumQuantity() {
+                        pts.append(["date": stat.startDate.timeIntervalSince1970, "value": q.doubleValue(for: unit)])
+                    }
+                }
+                record(key, pts); group.leave()
+            }
+        }
+
+        // Daily-average heart-rate metrics (Apple writes ~one value per day).
+        let avgs: [(String, HKQuantityType)] = [
+            ("restHr", HKQuantityType(.restingHeartRate)),
+            ("walkHr", HKQuantityType(.walkingHeartRateAverage)),
+        ]
+        for (key, type) in avgs {
+            group.enter()
+            _dailyStats(type: type, options: .discreteAverage, start: start, anchor: anchor, interval: interval) { stats in
+                var pts: [[String: Any]] = []
+                stats?.enumerateStatistics(from: start, to: now) { stat, _ in
+                    if let q = stat.averageQuantity() {
+                        pts.append(["date": stat.startDate.timeIntervalSince1970, "value": q.doubleValue(for: bpm)])
+                    }
+                }
+                record(key, pts); group.leave()
+            }
+        }
+
+        // Heart rate: daily max + min WITH the wall-clock time each extreme
+        // occurred. HKStatistics gives the value but not its timestamp, so this
+        // scans the window's raw samples once and buckets by calendar day.
+        group.enter()
+        _dailyHrExtremes(start: start, now: now, cal: cal) { mx, mn in
+            record("hrMax", mx); record("hrMin", mn); group.leave()
+        }
+
+        group.notify(queue: .main) { completion(out) }
+    }
+
+    // One daily-bucketed statistics-collection query (helper for getDailyHistory).
+    private func _dailyStats(type: HKQuantityType, options: HKStatisticsOptions,
+                             start: Date, anchor: Date, interval: DateComponents,
+                             completion: @escaping (HKStatisticsCollection?) -> Void) {
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: nil, options: .strictStartDate)
+        let query = HKStatisticsCollectionQuery(quantityType: type, quantitySamplePredicate: predicate,
+                                                options: options, anchorDate: anchor,
+                                                intervalComponents: interval)
+        query.initialResultsHandler = { _, results, _ in completion(results) }
+        healthStore.execute(query)
+    }
+
+    // Daily heart-rate max & min WITH the time each extreme occurred. HKStatistics
+    // exposes the value but not its timestamp, so we pull the window's raw heart-
+    // rate samples once and scan them ourselves, bucketing by calendar day. Each
+    // entry: {date: day start, value: bpm, at: that sample's wall-clock time}
+    // (epoch seconds), oldest day first.
+    private func _dailyHrExtremes(start: Date, now: Date, cal: Calendar,
+                                  _ completion: @escaping (_ max: [[String: Any]], _ min: [[String: Any]]) -> Void) {
+        let bpm = HKUnit.count().unitDivided(by: .minute())
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: now, options: .strictStartDate)
+        let query = HKSampleQuery(sampleType: HKQuantityType(.heartRate), predicate: predicate,
+                                  limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, _ in
+            // day-start epoch -> (extreme value, time it occurred)
+            var hi: [TimeInterval: (val: Double, at: TimeInterval)] = [:]
+            var lo: [TimeInterval: (val: Double, at: TimeInterval)] = [:]
+            for s in (samples as? [HKQuantitySample] ?? []) {
+                let v = s.quantity.doubleValue(for: bpm)
+                let day = cal.startOfDay(for: s.startDate).timeIntervalSince1970
+                let at = s.startDate.timeIntervalSince1970
+                if let cur = hi[day] { if v > cur.val { hi[day] = (v, at) } } else { hi[day] = (v, at) }
+                if let cur = lo[day] { if v < cur.val { lo[day] = (v, at) } } else { lo[day] = (v, at) }
+            }
+            let mx = hi.keys.sorted().map { ["date": $0, "value": hi[$0]!.val, "at": hi[$0]!.at] as [String: Any] }
+            let mn = lo.keys.sorted().map { ["date": $0, "value": lo[$0]!.val, "at": lo[$0]!.at] as [String: Any] }
+            completion(mx, mn)
+        }
+        healthStore.execute(query)
     }
 
     // VO₂ max samples over the last `days`, oldest first, as [{date, value}].
@@ -1642,16 +1839,18 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         healthStore.execute(query)
     }
 
-    // Heart-rate samples restricted to the in-bed windows of `nights` (an OR of
-    // per-night predicates), so we don't pull every daytime/workout HR sample.
-    private func _heartRateAcross(nights: [OvernightMath.Night],
-                                  _ completion: @escaping ([HKQuantitySample]) -> Void) {
+    // Quantity samples (of `type`) restricted to the in-bed windows of `nights`
+    // (an OR of per-night predicates), so we don't pull every daytime/workout
+    // sample. Used for bed HR (.heartRate) and bed respiratory rate
+    // (.respiratoryRate).
+    private func _samplesAcross(nights: [OvernightMath.Night],
+                                type: HKQuantityType,
+                                _ completion: @escaping ([HKQuantitySample]) -> Void) {
         guard !nights.isEmpty else { completion([]); return }
         let preds = nights.map {
             HKQuery.predicateForSamples(withStart: $0.sleepOnset, end: $0.bedEnd, options: [.strictStartDate])
         }
         let predicate = NSCompoundPredicate(orPredicateWithSubpredicates: preds)
-        let type = HKQuantityType(.heartRate)
         let query = HKSampleQuery(sampleType: type, predicate: predicate,
                                   limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, _ in
             completion(samples as? [HKQuantitySample] ?? [])

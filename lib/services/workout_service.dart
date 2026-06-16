@@ -183,7 +183,9 @@ class WorkoutService {
   }
 
   /// Per-night readiness history for the SHB+ trends hub over the last [days]:
-  ///   { 'hrv': [{date, bedMs, sleepMs?}], 'hr': [{date, bpm}], 'vo2': [{date, value}] }
+  ///   { 'hrv': [{date, bedMs, sleepMs?}], 'hr': [{date, bpm}],
+  ///     'resp': [{date, brpm}], 'vo2': [{date, value}],
+  ///     'sleep': [{date, inBedSecs, asleepSecs}] }
   /// where date is epoch seconds. Each series is oldest-first.
   Future<Map<String, List<Map<String, dynamic>>>> getReadinessHistory(
       {int days = 30}) async {
@@ -193,7 +195,37 @@ class WorkoutService {
         ((result?[k] as List?) ?? const [])
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList();
-    return {'hrv': series('hrv'), 'hr': series('hr'), 'vo2': series('vo2')};
+    return {
+      'hrv': series('hrv'),
+      'hr': series('hr'),
+      'resp': series('resp'),
+      'temp': series('temp'),
+      'spo2': series('spo2'),
+      'vo2': series('vo2'),
+      'sleep': series('sleep'),
+    };
+  }
+
+  /// Per-calendar-day activity & heart-rate history for the SHB+ trends hub.
+  /// Keys: steps, kcal, walkKm, walkHr, restHr, hrMax, hrMin, exMin. Oldest first.
+  Future<Map<String, List<Map<String, dynamic>>>> getDailyHistory(
+      {int days = 30}) async {
+    final result = await _method.invokeMapMethod<String, dynamic>(
+        'getDailyHistory', {'days': days});
+    List<Map<String, dynamic>> series(String k) =>
+        ((result?[k] as List?) ?? const [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+    return {
+      'steps': series('steps'),
+      'kcal': series('kcal'),
+      'walkKm': series('walkKm'),
+      'walkHr': series('walkHr'),
+      'restHr': series('restHr'),
+      'hrMax': series('hrMax'),
+      'hrMin': series('hrMin'),
+      'exMin': series('exMin'),
+    };
   }
 
   /// Returns the `airpods.pro` SF Symbol rendered to PNG bytes at the given pointSize,

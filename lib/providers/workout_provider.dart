@@ -9,6 +9,7 @@ import '../services/tts_service.dart';
 import '../services/session_storage_service.dart';
 import '../services/health_profile_store.dart';
 import '../services/health_import_service.dart';
+import '../services/iap_service.dart';
 import '../constants.dart';
 import '../plus_api.dart';
 import '../plus_binding.dart';
@@ -321,17 +322,50 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// in plus_binding.dart. Tests inject a [plusFactory] to capture pushes.
   late final PlusFeatures plus;
 
+  /// StoreKit 2 in-app purchases (SHB+ unlock + tip). Core-side; the provider
+  /// pushes its entitlement into [plus] via setUnlocked. Tests can inject a fake.
+  final IapService _iap;
+  StreamSubscription<bool>? _entitlementSub;
+
   WorkoutProvider(
       {WorkoutService? workout,
       TtsService? tts,
+      IapService? iap,
       PlusFeatures Function(WorkoutProvider provider)? plusFactory})
       : _workout = workout ?? WorkoutService(),
-        _tts = tts ?? TtsService() {
+        _tts = tts ?? TtsService(),
+        _iap = iap ?? IapService() {
     plus = (plusFactory ?? createPlusFeatures)(this);
     initialized = _loadPrefs();
     WidgetsBinding.instance.addObserver(this);
     _startIdlePoll();
+    _listenEntitlement();
   }
+
+  /// Mirror the StoreKit entitlement into the SHB+ module. The stream fires once
+  /// on listen with the current value, so a returning owner is unlocked at
+  /// launch without any tap. The compile-time owner unlock (SHB_PLUS_UNLOCK)
+  /// still wins inside [plus] regardless of what StoreKit reports.
+  void _listenEntitlement() {
+    _entitlementSub = _iap.plusEntitled.listen((owned) {
+      if (_disposed) return;
+      plus.setUnlocked(owned);
+    });
+  }
+
+  /// Localized SHB+ / tip products for the paywall (each {id,title,description,
+  /// price}); empty when StoreKit is unreachable or products aren't live yet.
+  Future<List<Map<String, dynamic>>> plusProducts() => _iap.products();
+
+  /// Starts the SHB+ purchase. Returns the native status map.
+  Future<Map<String, dynamic>> buyPlus() => _iap.buy(IapService.plusProductId);
+
+  /// Leaves a tip (separate from the SHB+ unlock — gratuity, not features).
+  Future<Map<String, dynamic>> leaveTip() => _iap.buy(IapService.tipProductId);
+
+  /// Restores prior purchases (mandatory for the non-consumable). The unlock
+  /// arrives via the entitlement stream → [plus].setUnlocked.
+  Future<Map<String, dynamic>> restorePurchases() => _iap.restore();
 
   /// Called by the SHB+ module when its state changes: rebroadcasts to this
   /// provider's listeners and optionally persists preferences (the module's
@@ -846,6 +880,12 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<Map<String, List<Map<String, dynamic>>>> readinessHistory(
           {int days = 30}) =>
       _workout.getReadinessHistory(days: days);
+
+  /// Per-calendar-day activity & heart-rate history (steps, calories, walking,
+  /// resting/max/min HR, exercise minutes) for the SHB+ trends hub. Oldest first.
+  Future<Map<String, List<Map<String, dynamic>>>> dailyHistory(
+          {int days = 30}) =>
+      _workout.getDailyHistory(days: days);
 
   /// Workouts stored in Apple Health for the import picker, newest first.
   /// Returns null when HealthKit access is denied (so the screen can show a
@@ -1738,6 +1778,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     _stopIdlePoll();
     _hrSub?.cancel();
     _statusSub?.cancel();
+    _entitlementSub?.cancel();
     _tts.dispose();
     super.dispose();
   }

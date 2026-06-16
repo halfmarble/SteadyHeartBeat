@@ -17,6 +17,12 @@ abstract class PlusFeatures {
   /// Whether the user owns the SHB+ unlock (StoreKit entitlement).
   bool get unlocked;
 
+  /// Pushes the current StoreKit entitlement into the module. Called by the
+  /// provider whenever the `steadyheartbeat/entitlements` stream changes (and
+  /// once at startup). The module updates [unlocked] and notifies listeners.
+  /// Inert in the free core.
+  void setUnlocked(bool owned);
+
   /// Prefs round-trip for the module's persisted settings. Called from the
   /// provider's _loadPrefs / savePrefs.
   void loadPrefs(SharedPreferences prefs);
@@ -55,6 +61,8 @@ class NoPlusFeatures implements PlusFeatures {
   bool get available => false;
   @override
   bool get unlocked => false;
+  @override
+  void setUnlocked(bool owned) {}
   @override
   void loadPrefs(SharedPreferences prefs) {}
   @override

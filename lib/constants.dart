@@ -32,6 +32,11 @@ const Color kTextDim    = Color(0xFF666666);  // was #555555 — slightly bright
 const Color kTextFaint  = Color(0xFF888888);
 const Color kTextGhost  = Color(0xFF555555);  // truly decorative — empty-state icons
 const Color kChartGrid  = Color(0xFF222222);
+// Synthesized "summary index" charts (recovery, sleep quality, activity load,
+// strain…) draw in a neutral white/grey rather than a zone hue, so the derived
+// 0–100 folds read as composites apart from the directly-measured (coloured)
+// metric charts.
+const Color kSynthLine  = Color(0xFFCFCFCF);
 
 // ── HR zones ──────────────────────────────────────────────────────────────────
 const Color kZoneBrady = Color(0xFFE84855); // <50 bpm  (same as kAccent)
@@ -46,6 +51,16 @@ const Color kZone5     = Color(0xFFE84855); // 90+ %    red-line (same as kAccen
 // language doesn't require chasing literals across the chart code.
 const Color kZoneTransition = Color(0xFFFF8C00);
 const Color kCyan      = Color(0xFF4FC3F7); // distance / effort chip
+
+// ── Trends chart palette ────────────────────────────────────────────────────
+// Four semantic line colours for the measured-data trend charts (the
+// synthesized summary folds use kSynthLine). Collapsed from the old six-colour
+// set so colour carries meaning: red = heart, yellow = calories/activity,
+// blue = oxygen/respiration, green = sleep/overnight.
+const Color kHeartLine    = kAccent; // HRV, HR, resting/walking HR, HR range
+const Color kActivityLine = kZone3;  // steps, distance, calories, exercise min
+const Color kOxygenLine   = kCyan;   // blood oxygen, breathing rate, VO₂ max
+const Color kSleepLine    = kZone1;  // sleep duration, naps, restlessness, temp
 
 // Alpha used for the chart's HR-zone band fills (~7% = subtle background tint
 // that doesn't compete with the line). Pulled out so legibility can be tuned

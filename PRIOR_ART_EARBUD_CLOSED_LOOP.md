@@ -4,7 +4,7 @@
 **Author / discloser:** Halfmarble LLC (gerard ziemski, Cofounder | Bioenergetics OS Architect)
 **Effective publication date:** 2026-06-04 (the date this document first became publicly accessible)
 **Status:** Defensive publication. The methods and techniques described herein are dedicated to the public domain (see *Dedication*, below).
-**Permanent archive:** Technical Disclosure Commons, Defensive Publications Series — <https://www.tdcommons.org/dpubs_series/10440> (posted 2026-06-15).
+**Permanent archive:** Technical Disclosure Commons, Defensive Publications Series — <https://www.tdcommons.org/dpubs_series/10440> (posted 2026-06-15). The 2026-06-04 effective publication date above is the governing prior-art date.
 
 ---
 

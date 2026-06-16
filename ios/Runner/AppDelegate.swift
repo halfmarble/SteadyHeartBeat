@@ -137,6 +137,10 @@ import AVFoundation
                 let days = (call.arguments as? [String: Any])?["days"] as? Int ?? 30
                 WorkoutManager.shared.getReadinessHistory(days: days) { result($0) }
 
+            case "getDailyHistory":
+                let days = (call.arguments as? [String: Any])?["days"] as? Int ?? 30
+                WorkoutManager.shared.getDailyHistory(days: days) { result($0) }
+
             case "setAnnounceInterval":
                 let seconds = (call.arguments as? [String: Any])?["seconds"] as? Int ?? 15
                 WorkoutManager.shared.setAnnounceInterval(seconds: seconds)
@@ -229,6 +233,37 @@ import AVFoundation
             binaryMessenger: messenger
         )
         statusChannel.setStreamHandler(StatusStreamHandler())
+
+        // Method channel: StoreKit 2 in-app purchases (SHB+ unlock + tip jar)
+        let storeChannel = FlutterMethodChannel(
+            name: "steadyheartbeat/store",
+            binaryMessenger: messenger
+        )
+        storeChannel.setMethodCallHandler { call, result in
+            switch call.method {
+            case "products":
+                Task { result(await StoreManager.shared.loadProducts()) }
+            case "buy":
+                let id = (call.arguments as? [String: Any])?["productId"] as? String ?? ""
+                Task { result(await StoreManager.shared.purchase(id)) }
+            case "restore":
+                Task { result(await StoreManager.shared.restore()) }
+            case "isPlusEntitled":
+                result(StoreManager.shared.plusEntitled)
+            default:
+                result(FlutterMethodNotImplemented)
+            }
+        }
+
+        // Event channel: entitlement changes → Flutter ({"plus": Bool})
+        let entitlementChannel = FlutterEventChannel(
+            name: "steadyheartbeat/entitlements",
+            binaryMessenger: messenger
+        )
+        entitlementChannel.setStreamHandler(EntitlementStreamHandler())
+
+        // Begin watching StoreKit transactions and resolve launch entitlement.
+        StoreManager.shared.start()
     }
 }
 
@@ -252,6 +287,20 @@ class StatusStreamHandler: NSObject, FlutterStreamHandler {
     }
     func onCancel(withArguments arguments: Any?) -> FlutterError? {
         WorkoutManager.shared.statusEventSink = nil
+        return nil
+    }
+}
+
+class EntitlementStreamHandler: NSObject, FlutterStreamHandler {
+    func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+        StoreManager.shared.entitlementSink = events
+        // Emit the current value immediately so a late listener isn't stuck at
+        // the default until the next change.
+        events(["plus": StoreManager.shared.plusEntitled])
+        return nil
+    }
+    func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        StoreManager.shared.entitlementSink = nil
         return nil
     }
 }
