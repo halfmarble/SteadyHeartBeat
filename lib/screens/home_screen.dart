@@ -49,15 +49,16 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
         actions: [
-          // Trends hub — shown in every build. The free core routes this to an
-          // SHB+ teaser (so free users see what the upgrade adds); the paid
-          // build opens the chart, or the teaser when locked.
-          IconButton(
-            tooltip: 'Trends',
-            icon: const Icon(CupertinoIcons.chart_bar_square),
-            onPressed: () =>
-                context.read<WorkoutProvider>().plus.openTrends(context, ''),
-          ),
+          // Trends hub — only when the SHB+ module is present (paid build). The
+          // free core shows no trends entry point at all, so it never surfaces
+          // an upsell for a not-yet-purchasable feature.
+          if (context.read<WorkoutProvider>().plus.available)
+            IconButton(
+              tooltip: 'Trends',
+              icon: const Icon(CupertinoIcons.chart_bar_square),
+              onPressed: () =>
+                  context.read<WorkoutProvider>().plus.openTrends(context, ''),
+            ),
           IconButton(
             tooltip: 'Session history',
             icon: const Icon(CupertinoIcons.clock),
@@ -980,8 +981,9 @@ class _PreWorkoutMetrics extends StatelessWidget {
         age: ageLabel(manual, provider.recentHrvDate),
         ageColor: ageTint(manual, provider.hrvStale),
         infoKey: overnight ? 'bedHrv' : 'restingHrv',
-        // Tap the bed HRV value → daily-trends hub (SHB+ chart, or teaser).
-        onValueTap: overnight
+        // Tap the bed HRV value → daily-trends hub. Only in a build with the
+        // SHB+ module (paid); the free core has no trends entry point.
+        onValueTap: overnight && provider.plus.available
             ? () => provider.plus.openTrends(context, 'bedHrv')
             : null,
       ));
@@ -1007,7 +1009,7 @@ class _PreWorkoutMetrics extends StatelessWidget {
         age: ageLabel(manual, provider.recentRestingHrDate),
         ageColor: ageTint(manual, provider.restingHrStale),
         infoKey: overnight ? 'bedHr' : 'restingHr',
-        onValueTap: overnight
+        onValueTap: overnight && provider.plus.available
             ? () => provider.plus.openTrends(context, 'bedHr')
             : null,
       ));
@@ -1032,7 +1034,9 @@ class _PreWorkoutMetrics extends StatelessWidget {
         age: ageLabel(manual, provider.recentVo2MaxDate),
         ageColor: ageTint(manual, provider.vo2Stale),
         infoKey: 'vo2max',
-        onValueTap: () => provider.plus.openTrends(context, 'vo2max'),
+        onValueTap: provider.plus.available
+            ? () => provider.plus.openTrends(context, 'vo2max')
+            : null,
       ));
     }
 

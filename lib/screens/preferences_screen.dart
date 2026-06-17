@@ -1937,7 +1937,7 @@ class _ResearchNote extends StatelessWidget {
                 style: TextStyle(fontSize: kFontCaption, height: 1.4, fontStyle: FontStyle.italic),
                 children: [
                   TextSpan(
-                    text: 'This opt-in is coming in a future update. Learn more at ',
+                    text: 'Learn more at ',
                     style: TextStyle(color: kTextFaint),
                   ),
                   TextSpan(
