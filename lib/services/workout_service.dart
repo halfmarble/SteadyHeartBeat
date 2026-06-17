@@ -182,7 +182,7 @@ class WorkoutService {
         .toList();
   }
 
-  /// Per-night readiness history for the SHB+ trends hub over the last [days]:
+  /// Per-night readiness history for the Plus trends hub over the last [days]:
   ///   { 'hrv': [{date, bedMs, sleepMs?}], 'hr': [{date, bpm}],
   ///     'resp': [{date, brpm}], 'vo2': [{date, value}],
   ///     'sleep': [{date, inBedSecs, asleepSecs}] }
@@ -206,7 +206,7 @@ class WorkoutService {
     };
   }
 
-  /// Per-calendar-day activity & heart-rate history for the SHB+ trends hub.
+  /// Per-calendar-day activity & heart-rate history for the Plus trends hub.
   /// Keys: steps, kcal, walkKm, walkHr, restHr, hrMax, hrMin, exMin. Oldest first.
   Future<Map<String, List<Map<String, dynamic>>>> getDailyHistory(
       {int days = 30}) async {

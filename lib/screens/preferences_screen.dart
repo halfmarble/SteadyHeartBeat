@@ -37,49 +37,48 @@ class PreferencesScreen extends StatelessWidget {
           children: [
             _VoicePrefsEntry(provider: provider),
             const SizedBox(height: 12),
-            // SHB+ only (trend charts): tactile tick when scrubbing. Near the top
-            // so it's easy to find. Hidden in the free core (no charts to scrub).
-            if (provider.plus.available) ...[
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: kSurface,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.vibration, size: kIconXS, color: kAccent),
-                    const SizedBox(width: 16),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('Chart haptics',
-                              style: TextStyle(
-                                  color: kTextBright, fontSize: kFontLG)),
-                          SizedBox(height: 2),
-                          Text('Tactile tick when scrubbing trend charts',
-                              style: TextStyle(
-                                  color: kTextSubtle, fontSize: kFontBase)),
-                        ],
-                      ),
-                    ),
-                    CupertinoSwitch(
-                      value: provider.chartHaptics,
-                      activeTrackColor: kAccent,
-                      onChanged: (v) {
-                        provider.setChartHaptics(v);
-                        // Fire a tap when enabling — confirms it's on, and
-                        // doubles as a device-haptics probe.
-                        if (v) HapticFeedback.lightImpact();
-                      },
-                    ),
-                  ],
-                ),
+            // Tactile tick when scrubbing a chart — the workout/session HR chart
+            // (every build) and the Plus trend charts. Near the top so it's easy
+            // to find.
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: kSurface,
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(height: 12),
-            ],
+              child: Row(
+                children: [
+                  const Icon(Icons.vibration, size: kIconXS, color: kAccent),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Chart haptics',
+                            style: TextStyle(
+                                color: kTextBright, fontSize: kFontLG)),
+                        SizedBox(height: 2),
+                        Text('Tactile tick when scrubbing charts',
+                            style: TextStyle(
+                                color: kTextSubtle, fontSize: kFontBase)),
+                      ],
+                    ),
+                  ),
+                  CupertinoSwitch(
+                    value: provider.chartHaptics,
+                    activeTrackColor: kAccent,
+                    onChanged: (v) {
+                      provider.setChartHaptics(v);
+                      // Fire a tap when enabling — confirms it's on, and doubles
+                      // as a device-haptics probe.
+                      if (v) HapticFeedback.lightImpact();
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
             _NavRow(
               icon: CupertinoIcons.person,
               title: 'You & your body',
@@ -104,11 +103,11 @@ class PreferencesScreen extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const _AlertsScreen())),
             ),
             const SizedBox(height: 12),
-            // SHB+ module — absent in the free core / while the upgrade is locked.
+            // Plus module — absent in the free core / while the upgrade is locked.
             if (provider.plus.preferencesSection(context) != null) ...[
               _NavRow(
                 icon: CupertinoIcons.timer,
-                title: 'HR-gated protocols (SHB+)',
+                title: 'HR-gated protocols (Plus)',
                 subtitle: 'Warm-up, recovery-gated rest & cool-down',
                 onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const _GateProtocolsScreen())),
@@ -336,7 +335,7 @@ class _DataScreen extends StatelessWidget {
   }
 }
 
-/// "HR-gated protocols (SHB+)" — the paid module's gate configuration; reached
+/// "HR-gated protocols (Plus)" — the paid module's gate configuration; reached
 /// only when the upgrade is unlocked (the nav row is hidden otherwise).
 class _GateProtocolsScreen extends StatelessWidget {
   const _GateProtocolsScreen();
@@ -1864,7 +1863,7 @@ class _AboutSection extends StatelessWidget {
   Widget build(BuildContext context) {
     // Build number from kBuildNumber (auto-written by the Xcode build phase, the
     // same source as the home header badge — so they can't disagree). "+" marks
-    // an SHB+ build (module compiled in), shown in both places or neither.
+    // an Plus build (module compiled in), shown in both places or neither.
     final plus = context.read<WorkoutProvider>().plus.available;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,

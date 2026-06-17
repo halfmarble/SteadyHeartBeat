@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 /// reached through the `steadyheartbeat/store` MethodChannel and the
 /// `steadyheartbeat/entitlements` EventChannel.
 ///
-/// Free-core on purpose: the SHB+ entitlement bool and the tip jar are both
+/// Free-core on purpose: the Plus entitlement bool and the tip jar are both
 /// core concerns — only the paid *features* live in `lib/plus/`. The provider
 /// pushes the entitlement into the module via `PlusFeatures.setUnlocked`; this
 /// service never imports `lib/plus/`. See docs/OPEN_CORE_ARCHITECTURE.md.
@@ -50,7 +50,7 @@ class IapService {
     return result ?? false;
   }
 
-  /// Live entitlement: true when the SHB+ unlock is owned. Fires once on listen
+  /// Live entitlement: true when the Plus unlock is owned. Fires once on listen
   /// with the current value, then on every change (purchase, restore,
   /// other-device sync, revocation).
   Stream<bool> get plusEntitled =>

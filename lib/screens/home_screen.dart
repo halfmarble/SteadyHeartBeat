@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -18,6 +19,11 @@ import 'sessions_screen.dart';
 import '../utils.dart';
 import '../widgets/workout_type_icon.dart';
 import '../widgets/metric_explainer.dart';
+
+// Last sample index touched while scrubbing the workout/session HR chart, so a
+// drag ticks once per sample (not every frame). File-private: one chart is
+// scrubbed at a time.
+int? _workoutScrubIdx;
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -39,7 +45,7 @@ class HomeScreen extends StatelessWidget {
             // kBuildNumber is auto-written by the Xcode "build number" build
             // phase before each iOS build, so it always matches the installed
             // build. The About line uses the same const. "+" marks a build with
-            // the SHB+ module compiled in, so a free-core install and a plus
+            // the Plus module compiled in, so a free-core install and a plus
             // install of the same build number are distinguishable at a glance.
             Text(
               'b$kBuildNumber${context.read<WorkoutProvider>().plus.available ? '+' : ''}',
@@ -49,7 +55,7 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
         actions: [
-          // Trends hub — only when the SHB+ module is present (paid build). The
+          // Trends hub — only when the Plus module is present (paid build). The
           // free core shows no trends entry point at all, so it never surfaces
           // an upsell for a not-yet-purchasable feature.
           if (context.read<WorkoutProvider>().plus.available)
@@ -880,7 +886,7 @@ class _RoundBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final phase = provider.roundPhase;
-    // During an SHB+ module-driven phase (e.g. an HR-gated warm-up) the module
+    // During an Plus module-driven phase (e.g. an HR-gated warm-up) the module
     // supplies its own panel instead of the countdown banner. Null in the free
     // core and outside gated phases.
     final plusBanner = provider.plus.roundBanner(context, phase);
@@ -982,7 +988,7 @@ class _PreWorkoutMetrics extends StatelessWidget {
         ageColor: ageTint(manual, provider.hrvStale),
         infoKey: overnight ? 'bedHrv' : 'restingHrv',
         // Tap the bed HRV value → daily-trends hub. Only in a build with the
-        // SHB+ module (paid); the free core has no trends entry point.
+        // Plus module (paid); the free core has no trends entry point.
         onValueTap: overnight && provider.plus.available
             ? () => provider.plus.openTrends(context, 'bedHrv')
             : null,
@@ -1081,7 +1087,7 @@ class _Metric extends StatelessWidget {
   // Key into kMetricExplainers; null = no ⓘ affordance. The ⓘ (on the label) is
   // a distinct tap target from [onValueTap] (the value → daily-trends chart).
   final String? infoKey;
-  // Tapping the value opens the metric's daily-trends chart (SHB+), via the
+  // Tapping the value opens the metric's daily-trends chart (Plus), via the
   // plus plug point — a teaser when locked. Null = value not tappable.
   final VoidCallback? onValueTap;
 
@@ -1990,6 +1996,23 @@ class BpmChart extends StatelessWidget {
         lineTouchData: scrub
             ? LineTouchData(
                 enabled: true,
+                // Light tick as the scrub crosses to a new sample (gated on the
+                // chart-haptics preference). Built-in touch still drives the
+                // tooltip; this callback only observes.
+                touchCallback: (event, resp) {
+                  final spots = resp?.lineBarSpots;
+                  if (spots == null || spots.isEmpty) {
+                    _workoutScrubIdx = null;
+                    return;
+                  }
+                  final idx = spots.first.spotIndex;
+                  if (idx != _workoutScrubIdx) {
+                    _workoutScrubIdx = idx;
+                    if (context.read<WorkoutProvider>().chartHaptics) {
+                      HapticFeedback.lightImpact();
+                    }
+                  }
+                },
                 touchTooltipData: LineTouchTooltipData(
                   getTooltipColor: (_) => kSurface,
                   tooltipRoundedRadius: 6,
