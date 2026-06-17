@@ -131,10 +131,10 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     // boxing countdown/bell/announcement (set in _tickRound).
     private var _suppressBpmUntil: TimeInterval = 0
 
-    // MARK: - Plus gate engine plug point
+    // MARK: - SHB+ gate engine plug point
     //
     // HR-gated phases (warm-up / recovery-gated rest / cool-down) are driven by
-    // the Plus module's gate engine, reached only through GateEngineProtocol
+    // the SHB+ module's gate engine, reached only through GateEngineProtocol
     // (declared at the bottom of this file). The implementation lives in
     // Plus/GateEngine.swift; the public free core carries a stub version of
     // that file whose engine has every enable false — the gated branches below
@@ -491,7 +491,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         _prepSecs = max(0, prepSecs)
     }
 
-    // Offers a method-channel call the core doesn't recognize to the Plus
+    // Offers a method-channel call the core doesn't recognize to the SHB+
     // module (e.g. its gate-config push). Returns true when consumed; the
     // free core's stub engine consumes nothing.
     func handlePlusMethod(_ method: String, arguments: Any?) -> Bool {
@@ -627,7 +627,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         statusEventSink?(payload)
     }
 
-    // MARK: - Plus gated-phase seams
+    // MARK: - SHB+ gated-phase seams
 
     // True while the current phase advances on heart rate (engine-driven)
     // rather than a countdown. Always false with the free core's stub engine.
@@ -1581,7 +1581,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         healthStore.execute(query)
     }
 
-    // MARK: - Readiness daily history (Plus trends hub)
+    // MARK: - Readiness daily history (SHB+ trends hub)
 
     // Per-night history over the last `days` for the trends hub, as
     //   { "hrv": [{date, bedMs, sleepMs?}], "hr": [{date, bpm, sleepBpm?}],
@@ -2180,9 +2180,9 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {}
 }
 
-// MARK: - Plus gate engine surface (core side)
+// MARK: - SHB+ gate engine surface (core side)
 //
-// The round timer reaches the Plus HR-gate engine exclusively through this
+// The round timer reaches the SHB+ HR-gate engine exclusively through this
 // protocol; phases travel as RoundPhase.rawValue strings so the engine stays
 // decoupled from the private enum. Plus/GateEngine.swift defines
 // makeGateEngine() — the real engine in the private repo, a stub returning

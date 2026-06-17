@@ -4,7 +4,7 @@ import StoreKit
 /// StoreKit 2 wrapper for the two in-app purchases (free-core: the entitlement
 /// boolean and the tip jar both belong to the core, per
 /// docs/OPEN_CORE_ARCHITECTURE.md — `isPlusUnlocked` is the one choke point and
-/// it lives core-side). The Plus *features* stay in lib/plus/; this only owns
+/// it lives core-side). The SHB+ *features* stay in lib/plus/; this only owns
 /// "does the user own the unlock," surfaced to Flutter as a plain bool.
 ///
 /// - Product IDs come from docs/SHB_PLUS_PRICING.md / APP_STORE_SETUP.md §11.
@@ -29,7 +29,7 @@ final class StoreManager {
 
     /// Pushed the entitlement payload on every change. Main-thread only.
     var entitlementSink: FlutterEventSink?
-    /// Whether the Plus non-consumable is currently owned. Main-thread only.
+    /// Whether the SHB+ non-consumable is currently owned. Main-thread only.
     private(set) var plusEntitled = false
 
     private init() {}

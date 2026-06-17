@@ -38,7 +38,7 @@ class PreferencesScreen extends StatelessWidget {
             _VoicePrefsEntry(provider: provider),
             const SizedBox(height: 12),
             // Tactile tick when scrubbing a chart — the workout/session HR chart
-            // (every build) and the Plus trend charts. Near the top so it's easy
+            // (every build) and the SHB+ trend charts. Near the top so it's easy
             // to find.
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -103,11 +103,11 @@ class PreferencesScreen extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const _AlertsScreen())),
             ),
             const SizedBox(height: 12),
-            // Plus module — absent in the free core / while the upgrade is locked.
+            // SHB+ module — absent in the free core / while the upgrade is locked.
             if (provider.plus.preferencesSection(context) != null) ...[
               _NavRow(
                 icon: CupertinoIcons.timer,
-                title: 'HR-gated protocols (Plus)',
+                title: 'HR-gated protocols (SHB+)',
                 subtitle: 'Warm-up, recovery-gated rest & cool-down',
                 onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const _GateProtocolsScreen())),
@@ -335,7 +335,7 @@ class _DataScreen extends StatelessWidget {
   }
 }
 
-/// "HR-gated protocols (Plus)" — the paid module's gate configuration; reached
+/// "HR-gated protocols (SHB+)" — the paid module's gate configuration; reached
 /// only when the upgrade is unlocked (the nav row is hidden otherwise).
 class _GateProtocolsScreen extends StatelessWidget {
   const _GateProtocolsScreen();
@@ -1863,7 +1863,7 @@ class _AboutSection extends StatelessWidget {
   Widget build(BuildContext context) {
     // Build number from kBuildNumber (auto-written by the Xcode build phase, the
     // same source as the home header badge — so they can't disagree). "+" marks
-    // an Plus build (module compiled in), shown in both places or neither.
+    // an SHB+ build (module compiled in), shown in both places or neither.
     final plus = context.read<WorkoutProvider>().plus.available;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,

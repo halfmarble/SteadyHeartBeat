@@ -210,7 +210,7 @@ import AVFoundation
                 }
 
             default:
-                // Methods the core doesn't know are offered to the Plus
+                // Methods the core doesn't know are offered to the SHB+
                 // module's engine (a no-op in the free core).
                 if WorkoutManager.shared.handlePlusMethod(call.method, arguments: call.arguments) {
                     result(nil)
@@ -234,7 +234,7 @@ import AVFoundation
         )
         statusChannel.setStreamHandler(StatusStreamHandler())
 
-        // Method channel: StoreKit 2 in-app purchases (Plus unlock + tip jar)
+        // Method channel: StoreKit 2 in-app purchases (SHB+ unlock + tip jar)
         let storeChannel = FlutterMethodChannel(
             name: "steadyheartbeat/store",
             binaryMessenger: messenger

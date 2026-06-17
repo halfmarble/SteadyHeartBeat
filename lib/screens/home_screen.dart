@@ -45,7 +45,7 @@ class HomeScreen extends StatelessWidget {
             // kBuildNumber is auto-written by the Xcode "build number" build
             // phase before each iOS build, so it always matches the installed
             // build. The About line uses the same const. "+" marks a build with
-            // the Plus module compiled in, so a free-core install and a plus
+            // the SHB+ module compiled in, so a free-core install and a plus
             // install of the same build number are distinguishable at a glance.
             Text(
               'b$kBuildNumber${context.read<WorkoutProvider>().plus.available ? '+' : ''}',
@@ -55,7 +55,7 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
         actions: [
-          // Trends hub — only when the Plus module is present (paid build). The
+          // Trends hub — only when the SHB+ module is present (paid build). The
           // free core shows no trends entry point at all, so it never surfaces
           // an upsell for a not-yet-purchasable feature.
           if (context.read<WorkoutProvider>().plus.available)
@@ -886,7 +886,7 @@ class _RoundBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final phase = provider.roundPhase;
-    // During an Plus module-driven phase (e.g. an HR-gated warm-up) the module
+    // During an SHB+ module-driven phase (e.g. an HR-gated warm-up) the module
     // supplies its own panel instead of the countdown banner. Null in the free
     // core and outside gated phases.
     final plusBanner = provider.plus.roundBanner(context, phase);
@@ -987,9 +987,10 @@ class _PreWorkoutMetrics extends StatelessWidget {
         age: ageLabel(manual, provider.recentHrvDate),
         ageColor: ageTint(manual, provider.hrvStale),
         infoKey: overnight ? 'bedHrv' : 'restingHrv',
-        // Tap the bed HRV value → daily-trends hub. Only in a build with the
-        // Plus module (paid); the free core has no trends entry point.
-        onValueTap: overnight && provider.plus.available
+        // Tap the HRV value → daily-trends hub (the overnight HRV history is
+        // shown regardless of whether today's reading is the bed or resting
+        // value). Paid build only; the free core has no trends entry point.
+        onValueTap: provider.plus.available
             ? () => provider.plus.openTrends(context, 'bedHrv')
             : null,
       ));
@@ -1015,7 +1016,7 @@ class _PreWorkoutMetrics extends StatelessWidget {
         age: ageLabel(manual, provider.recentRestingHrDate),
         ageColor: ageTint(manual, provider.restingHrStale),
         infoKey: overnight ? 'bedHr' : 'restingHr',
-        onValueTap: overnight && provider.plus.available
+        onValueTap: provider.plus.available
             ? () => provider.plus.openTrends(context, 'bedHr')
             : null,
       ));
@@ -1087,7 +1088,7 @@ class _Metric extends StatelessWidget {
   // Key into kMetricExplainers; null = no ⓘ affordance. The ⓘ (on the label) is
   // a distinct tap target from [onValueTap] (the value → daily-trends chart).
   final String? infoKey;
-  // Tapping the value opens the metric's daily-trends chart (Plus), via the
+  // Tapping the value opens the metric's daily-trends chart (SHB+), via the
   // plus plug point — a teaser when locked. Null = value not tappable.
   final VoidCallback? onValueTap;
 
@@ -1101,16 +1102,17 @@ class _Metric extends StatelessWidget {
             behavior: HitTestBehavior.opaque,
             onTap: () => showMetricExplainer(context, infoKey!),
             child: Padding(
-              // A little vertical padding turns the thin label into an easier
-              // tap target; every chip carries an ⓘ so they stay row-aligned.
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
+              // ⓘ stacked above the label, larger and bright white, with
+              // generous padding — a clear, easy-to-hit "tap for info & sources"
+              // affordance (the explainer carries the metric's citations).
+              padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(label, style: labelStyle),
-                  const SizedBox(width: 3),
                   const Icon(CupertinoIcons.info_circle,
-                      size: 12, color: kTextDim),
+                      size: 18, color: Colors.white),
+                  const SizedBox(height: 3),
+                  Text(label, style: labelStyle),
                 ],
               ),
             ),

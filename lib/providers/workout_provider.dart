@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert' show jsonEncode, jsonDecode;
 import 'dart:math' show max, min;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/widgets.dart';
@@ -318,12 +319,12 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// point to assert post-load state rather than racing the async constructor.
   late final Future<void> initialized;
 
-  /// The Plus paid module — inert [NoPlusFeatures] in the public free core,
+  /// The SHB+ paid module — inert [NoPlusFeatures] in the public free core,
   /// the real implementation (lib/plus/) in the private repo, per the binding
   /// in plus_binding.dart. Tests inject a [plusFactory] to capture pushes.
   late final PlusFeatures plus;
 
-  /// StoreKit 2 in-app purchases (Plus unlock + tip). Core-side; the provider
+  /// StoreKit 2 in-app purchases (SHB+ unlock + tip). Core-side; the provider
   /// pushes its entitlement into [plus] via setUnlocked. Tests can inject a fake.
   final IapService _iap;
   StreamSubscription<bool>? _entitlementSub;
@@ -343,7 +344,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     _listenEntitlement();
   }
 
-  /// Mirror the StoreKit entitlement into the Plus module. The stream fires once
+  /// Mirror the StoreKit entitlement into the SHB+ module. The stream fires once
   /// on listen with the current value, so a returning owner is unlocked at
   /// launch without any tap. The compile-time owner unlock (SHB_PLUS_UNLOCK)
   /// still wins inside [plus] regardless of what StoreKit reports.
@@ -354,21 +355,21 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     });
   }
 
-  /// Localized Plus / tip products for the paywall (each {id,title,description,
+  /// Localized SHB+ / tip products for the paywall (each {id,title,description,
   /// price}); empty when StoreKit is unreachable or products aren't live yet.
   Future<List<Map<String, dynamic>>> plusProducts() => _iap.products();
 
-  /// Starts the Plus purchase. Returns the native status map.
+  /// Starts the SHB+ purchase. Returns the native status map.
   Future<Map<String, dynamic>> buyPlus() => _iap.buy(IapService.plusProductId);
 
-  /// Leaves a tip (separate from the Plus unlock — gratuity, not features).
+  /// Leaves a tip (separate from the SHB+ unlock — gratuity, not features).
   Future<Map<String, dynamic>> leaveTip() => _iap.buy(IapService.tipProductId);
 
   /// Restores prior purchases (mandatory for the non-consumable). The unlock
   /// arrives via the entitlement stream → [plus].setUnlocked.
   Future<Map<String, dynamic>> restorePurchases() => _iap.restore();
 
-  /// Called by the Plus module when its state changes: rebroadcasts to this
+  /// Called by the SHB+ module when its state changes: rebroadcasts to this
   /// provider's listeners and optionally persists preferences (the module's
   /// settings ride [savePrefs]).
   void plusChanged({bool persist = false}) {
@@ -480,6 +481,20 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     deltaThreshold = prefs.getInt('deltaThreshold') ?? 10;
     welcomeEnabled = prefs.getBool('welcomeEnabled') ?? true;
     chartHaptics = prefs.getBool('chartHaptics') ?? true;
+    // Restore the persisted trends cache so the first hub open after launch is
+    // instant (a trailing partial pull then refreshes it). Ignore a corrupt blob.
+    final tc = prefs.getString('trendsCache');
+    if (tc != null) {
+      try {
+        final decoded = jsonDecode(tc) as Map<String, dynamic>;
+        trendsCache = decoded.map((k, v) => MapEntry(
+            k,
+            [for (final e in v as List) Map<String, dynamic>.from(e as Map)]));
+        _trendsCachedAt = prefs.getInt('trendsCachedAt');
+      } catch (_) {
+        trendsCache = null;
+      }
+    }
     zoneCoachingEnabled = prefs.getBool('zoneCoachingEnabled') ?? false;
     targetZone = prefs.getInt('targetZone') ?? 0;
     boxingRoundsEnabled = prefs.getBool('boxingRoundsEnabled') ?? false;
@@ -878,17 +893,85 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   // ── Apple Health workout import ───────────────────────────────────────────
 
-  /// Per-night readiness history (bed/sleep HRV, bed HR, VO₂ max) for the Plus
+  /// Per-night readiness history (bed/sleep HRV, bed HR, VO₂ max) for the SHB+
   /// trends hub. Keys: 'hrv', 'hr', 'vo2'. Oldest first.
   Future<Map<String, List<Map<String, dynamic>>>> readinessHistory(
           {int days = 30}) =>
       _workout.getReadinessHistory(days: days);
 
   /// Per-calendar-day activity & heart-rate history (steps, calories, walking,
-  /// resting/max/min HR, exercise minutes) for the Plus trends hub. Oldest first.
+  /// resting/max/min HR, exercise minutes) for the SHB+ trends hub. Oldest first.
   Future<Map<String, List<Map<String, dynamic>>>> dailyHistory(
           {int days = 30}) =>
       _workout.getDailyHistory(days: days);
+
+  // ── Trends cache (SHB+ hub) ───────────────────────────────────────────────
+  // The hub re-pulled the whole window from HealthKit on every open. This cache
+  // keeps the last merged result — in memory AND persisted (loaded in
+  // _loadPrefs) — so even the first open after launch is instant. On open the
+  // hub shows the cache, then [refreshTrends] re-pulls only a short trailing
+  // window (the gap since the last refresh + a 3-day overlap for late HealthKit
+  // sync) and merges it in; a full pull only when there's no cache, the gap is
+  // larger than the window, or [force] (pull-to-refresh).
+  Map<String, List<Map<String, dynamic>>>? trendsCache;
+  int? _trendsCachedAt; // epoch seconds of the last refresh
+
+  static const int _kTrendsOverlapDays = 3; // re-pull this far back for late sync
+
+  Future<Map<String, List<Map<String, dynamic>>>> refreshTrends(
+      {int days = 56, bool force = false}) async {
+    final cache = trendsCache;
+    final cachedAt = _trendsCachedAt;
+    final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+    if (force || cache == null || cachedAt == null) {
+      return _fullTrendsPull(days, nowSec);
+    }
+
+    // Trailing partial window: cover the gap since the last refresh + overlap.
+    final daysSince = ((nowSec - cachedAt) / 86400).ceil();
+    final partialDays = (daysSince + _kTrendsOverlapDays).clamp(_kTrendsOverlapDays, days);
+    if (partialDays >= days) return _fullTrendsPull(days, nowSec);
+
+    final readiness = await readinessHistory(days: partialDays);
+    final daily = await dailyHistory(days: partialDays);
+    final partial = {...readiness, ...daily};
+
+    // Keep cached entries older than the partial window; take everything within
+    // it from the fresh pull. Trim to the last [days]. Series are oldest-first.
+    final cutoff = nowSec - partialDays * 86400;
+    final floor = nowSec - days * 86400;
+    double dateOf(Map<String, dynamic> e) => (e['date'] as num?)?.toDouble() ?? 0;
+    final merged = <String, List<Map<String, dynamic>>>{};
+    for (final k in {...cache.keys, ...partial.keys}) {
+      final older = (cache[k] ?? const [])
+          .where((e) => dateOf(e) >= floor && dateOf(e) < cutoff);
+      final fresh = (partial[k] ?? const []).where((e) => dateOf(e) >= floor);
+      merged[k] = [...older, ...fresh];
+    }
+    trendsCache = merged;
+    _trendsCachedAt = nowSec;
+    _persistTrends();
+    return merged;
+  }
+
+  Future<Map<String, List<Map<String, dynamic>>>> _fullTrendsPull(
+      int days, int nowSec) async {
+    final readiness = await readinessHistory(days: days);
+    final daily = await dailyHistory(days: days);
+    trendsCache = {...readiness, ...daily};
+    _trendsCachedAt = nowSec;
+    _persistTrends();
+    return trendsCache!;
+  }
+
+  Future<void> _persistTrends() async {
+    final cache = trendsCache;
+    if (cache == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('trendsCache', jsonEncode(cache));
+    await prefs.setInt('trendsCachedAt', _trendsCachedAt ?? 0);
+  }
 
   /// Workouts stored in Apple Health for the import picker, newest first.
   /// Returns null when HealthKit access is denied (so the screen can show a
@@ -1224,7 +1307,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
       currentRound = data['round'] as int? ?? 0;
       roundTotal = data['total'] as int? ?? 0;
       roundRemaining = data['remaining'] as int? ?? 0;
-      // The Plus module reads its own fields from the event (no-op in the
+      // The SHB+ module reads its own fields from the event (no-op in the
       // free core).
       plus.onRoundEvent(data);
       notifyListeners();
