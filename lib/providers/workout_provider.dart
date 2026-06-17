@@ -262,6 +262,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool deltaAnnounceEnabled = false;   // off by default — opt-in, see preferences
   int deltaThreshold = 10;             // BPM change that triggers immediate announce
   bool welcomeEnabled = true;          // spoken welcome at app launch
+  bool chartHaptics = true;            // tactile tick when scrubbing trend charts
   // Zone coaching: when on, BPM announces name the zone ("142, zone 4"); with a
   // target zone (1–5, 0 = none) they also nudge "push"/"ease off". Needs zones
   // (age/DOB) configured — no-ops otherwise.
@@ -478,6 +479,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     deltaAnnounceEnabled = prefs.getBool('deltaAnnounceEnabled') ?? false;
     deltaThreshold = prefs.getInt('deltaThreshold') ?? 10;
     welcomeEnabled = prefs.getBool('welcomeEnabled') ?? true;
+    chartHaptics = prefs.getBool('chartHaptics') ?? true;
     zoneCoachingEnabled = prefs.getBool('zoneCoachingEnabled') ?? false;
     targetZone = prefs.getInt('targetZone') ?? 0;
     boxingRoundsEnabled = prefs.getBool('boxingRoundsEnabled') ?? false;
@@ -600,6 +602,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     await prefs.setBool('deltaAnnounceEnabled', deltaAnnounceEnabled);
     await prefs.setInt('deltaThreshold', deltaThreshold);
     await prefs.setBool('welcomeEnabled', welcomeEnabled);
+    await prefs.setBool('chartHaptics', chartHaptics);
     await prefs.setBool('zoneCoachingEnabled', zoneCoachingEnabled);
     await prefs.setInt('targetZone', targetZone);
     await prefs.setBool('boxingRoundsEnabled', boxingRoundsEnabled);
@@ -1585,6 +1588,12 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   void setWelcomeEnabled(bool enabled) {
     welcomeEnabled = enabled;
+    notifyListeners();
+    savePrefs();
+  }
+
+  void setChartHaptics(bool enabled) {
+    chartHaptics = enabled;
     notifyListeners();
     savePrefs();
   }

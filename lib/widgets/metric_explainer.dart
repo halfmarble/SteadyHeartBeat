@@ -1,5 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../constants.dart';
+
+/// A peer-reviewed source for a metric's health information, shown under
+/// "Sources" in the explainer sheet (App Store Guideline 1.4.1). [url] is
+/// optional — a textbook citation has no link; everything else points to
+/// PubMed / PMC / a DOI.
+class Citation {
+  final String label;
+  final String? url;
+  const Citation(this.label, [this.url]);
+}
 
 /// Plain-language explainers for the readiness-snapshot metrics, surfaced by the
 /// ⓘ affordance on each chip (home screen). Glass Box: the meaning of every
@@ -8,11 +19,14 @@ import '../constants.dart';
 ///
 /// Keep the copy free of FDA-restricted language ("treat", "diagnose",
 /// "prevent", etc.) — these are general-wellness readings under the FDA 2019
-/// General Wellness Policy.
+/// General Wellness Policy. Health figures carry [sources] so the medical
+/// information is cited in-app.
 class MetricExplainer {
   final String title;
   final List<String> paragraphs;
-  const MetricExplainer(this.title, this.paragraphs);
+  final List<Citation> sources;
+  const MetricExplainer(this.title, this.paragraphs,
+      {this.sources = const []});
 }
 
 const Map<String, MetricExplainer> kMetricExplainers = {
@@ -39,6 +53,12 @@ const Map<String, MetricExplainer> kMetricExplainers = {
         'any particular health condition — so follow your own trend over time '
         'rather than reading much into any single value.',
     'This is a general wellness reading, not a medical measurement.',
+  ], sources: [
+    Citation('HRV reference ranges — MESA (Multi-Ethnic Study of Atherosclerosis)',
+        'https://pmc.ncbi.nlm.nih.gov/articles/PMC5010946/'),
+    Citation(
+        'Consumer-watch SDNN validity — Hsu et al., Eur Heart J Digit Health 2023',
+        'https://pubmed.ncbi.nlm.nih.gov/37265873/'),
   ]),
   'restingHrv': MetricExplainer('resting HRV', [
     'This is your current heart-rate variability (SDNN) — your most recent '
@@ -52,6 +72,12 @@ const Map<String, MetricExplainer> kMetricExplainers = {
         'any particular health condition — watch your own trend, not the exact '
         'number.',
     'This is a general wellness reading, not a medical measurement.',
+  ], sources: [
+    Citation('HRV reference ranges — MESA (Multi-Ethnic Study of Atherosclerosis)',
+        'https://pmc.ncbi.nlm.nih.gov/articles/PMC5010946/'),
+    Citation(
+        'Consumer-watch SDNN validity — Hsu et al., Eur Heart J Digit Health 2023',
+        'https://pubmed.ncbi.nlm.nih.gov/37265873/'),
   ]),
   'bedHr': MetricExplainer('bed HR', [
     'Bed HR is your average heart rate across the same window — your whole night '
@@ -63,6 +89,11 @@ const Map<String, MetricExplainer> kMetricExplainers = {
         'computed a different way, so the two won’t always match. Watch your '
         'own baseline rather than comparing to anyone else.',
     'This is a general wellness reading, not a medical measurement.',
+  ], sources: [
+    Citation('Overnight / resting HR & recovery — Dial et al., Physiol Rep 2025',
+        'https://pmc.ncbi.nlm.nih.gov/articles/PMC12367097/'),
+    Citation('Apple Watch resting-HR accuracy (peer-reviewed validation)',
+        'https://pmc.ncbi.nlm.nih.gov/articles/PMC11478500/'),
   ]),
   'restingHr': MetricExplainer('resting HR', [
     'This is your current resting heart rate — your most recent reading from '
@@ -70,6 +101,11 @@ const Map<String, MetricExplainer> kMetricExplainers = {
     'Once your watch records heart rate across a night in bed, this becomes '
         '“bed HR”: your average across the whole night.',
     'This is a general wellness reading, not a medical measurement.',
+  ], sources: [
+    Citation('Overnight / resting HR & recovery — Dial et al., Physiol Rep 2025',
+        'https://pmc.ncbi.nlm.nih.gov/articles/PMC12367097/'),
+    Citation('Apple Watch resting-HR accuracy (peer-reviewed validation)',
+        'https://pmc.ncbi.nlm.nih.gov/articles/PMC11478500/'),
   ]),
   'vo2max': MetricExplainer('VO₂ max', [
     'VO₂ max estimates how efficiently your body uses oxygen during '
@@ -85,6 +121,11 @@ const Map<String, MetricExplainer> kMetricExplainers = {
         'it can be off by several points and is least reliable at the very high '
         'and very low ends of fitness, so follow the trend, not the exact number.',
     'This is a general wellness estimate, not a medical measurement.',
+  ], sources: [
+    Citation('VO₂ max fitness norms — ACSM’s Guidelines for Exercise Testing & '
+        'Prescription, 11th ed. (2021)'),
+    Citation('Apple Watch VO₂ max validity — PLOS ONE 2025',
+        'https://pubmed.ncbi.nlm.nih.gov/40373042/'),
   ]),
 };
 
@@ -138,6 +179,20 @@ Future<void> showMetricExplainer(BuildContext context, String key) async {
                       ),
                       const SizedBox(height: 12),
                     ],
+                    if (info.sources.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      const Text('SOURCES',
+                          style: TextStyle(
+                              color: kTextMuted,
+                              fontSize: kFontSM,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.2)),
+                      const SizedBox(height: 10),
+                      for (final c in info.sources) ...[
+                        _CitationRow(c),
+                        const SizedBox(height: 10),
+                      ],
+                    ],
                   ],
                 ),
               ),
@@ -147,4 +202,45 @@ Future<void> showMetricExplainer(BuildContext context, String key) async {
       ),
     ),
   );
+}
+
+/// One source row under "SOURCES": a link icon + label that opens the citation
+/// (PubMed / PMC / DOI) in the browser. Textbook citations (no [Citation.url])
+/// render as plain, non-tappable text with a book icon.
+class _CitationRow extends StatelessWidget {
+  const _CitationRow(this.citation);
+  final Citation citation;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = citation.url;
+    final hasLink = url != null;
+    return GestureDetector(
+      onTap: hasLink
+          ? () => launchUrl(Uri.parse(url),
+              mode: LaunchMode.externalApplication)
+          : null,
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(hasLink ? Icons.link : Icons.menu_book_outlined,
+              size: 15, color: hasLink ? kAccent : kTextDim),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              citation.label,
+              style: TextStyle(
+                color: hasLink ? kAccent : kTextSubtle,
+                fontSize: kFontSM,
+                height: 1.4,
+                decoration: hasLink ? TextDecoration.underline : null,
+                decorationColor: kAccent,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

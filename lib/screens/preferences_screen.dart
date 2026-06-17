@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
+import '../build_info.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/workout_provider.dart';
@@ -35,6 +37,49 @@ class PreferencesScreen extends StatelessWidget {
           children: [
             _VoicePrefsEntry(provider: provider),
             const SizedBox(height: 12),
+            // SHB+ only (trend charts): tactile tick when scrubbing. Near the top
+            // so it's easy to find. Hidden in the free core (no charts to scrub).
+            if (provider.plus.available) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: kSurface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.vibration, size: kIconXS, color: kAccent),
+                    const SizedBox(width: 16),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('Chart haptics',
+                              style: TextStyle(
+                                  color: kTextBright, fontSize: kFontLG)),
+                          SizedBox(height: 2),
+                          Text('Tactile tick when scrubbing trend charts',
+                              style: TextStyle(
+                                  color: kTextSubtle, fontSize: kFontBase)),
+                        ],
+                      ),
+                    ),
+                    CupertinoSwitch(
+                      value: provider.chartHaptics,
+                      activeTrackColor: kAccent,
+                      onChanged: (v) {
+                        provider.setChartHaptics(v);
+                        // Fire a tap when enabling — confirms it's on, and
+                        // doubles as a device-haptics probe.
+                        if (v) HapticFeedback.lightImpact();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             _NavRow(
               icon: CupertinoIcons.person,
               title: 'You & your body',
@@ -1817,17 +1862,22 @@ class _MetricOverrideState extends State<_MetricOverride> {
 class _AboutSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    // Build number from kBuildNumber (auto-written by the Xcode build phase, the
+    // same source as the home header badge — so they can't disagree). "+" marks
+    // an SHB+ build (module compiled in), shown in both places or neither.
+    final plus = context.read<WorkoutProvider>().plus.available;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
-      children: const [
-        Text(
+      children: [
+        const Text(
           'halfmarble',
-          style: TextStyle(color: kTextFaint, fontSize: kFontMD, letterSpacing: 0.5),
+          style:
+              TextStyle(color: kTextFaint, fontSize: kFontMD, letterSpacing: 0.5),
         ),
-        SizedBox(height: 4),
+        const SizedBox(height: 4),
         Text(
-          'SteadyHeartBeat 1.0',
-          style: TextStyle(color: kTextFaint, fontSize: kFontBase),
+          'SteadyHeartBeat 1.0.0 ($kBuildNumber${plus ? '+' : ''})',
+          style: const TextStyle(color: kTextFaint, fontSize: kFontBase),
         ),
       ],
     );

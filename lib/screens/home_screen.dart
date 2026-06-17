@@ -7,6 +7,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../build_info.dart';
 import '../providers/workout_provider.dart';
 import '../services/workout_service.dart';
 import '../constants.dart';
@@ -15,7 +16,6 @@ import 'preferences_screen.dart';
 import 'pre_workout_sheet.dart';
 import 'sessions_screen.dart';
 import '../utils.dart';
-import '../build_info.dart';
 import '../widgets/workout_type_icon.dart';
 import '../widgets/metric_explainer.dart';
 
@@ -36,12 +36,15 @@ class HomeScreen extends StatelessWidget {
               style: TextStyle(fontSize: kFontStat, fontWeight: FontWeight.w600, letterSpacing: 0.5),
             ),
             const SizedBox(width: 6),
-            // "+" marks a build with the SHB+ module compiled in, so an open
-            // (free-core) install and a plus install of the same build number
-            // are distinguishable at a glance.
+            // kBuildNumber is auto-written by the Xcode "build number" build
+            // phase before each iOS build, so it always matches the installed
+            // build. The About line uses the same const. "+" marks a build with
+            // the SHB+ module compiled in, so a free-core install and a plus
+            // install of the same build number are distinguishable at a glance.
             Text(
               'b$kBuildNumber${context.read<WorkoutProvider>().plus.available ? '+' : ''}',
-              style: const TextStyle(fontSize: 10, color: Colors.white54, fontWeight: FontWeight.w400),
+              style: const TextStyle(
+                  fontSize: 10, color: Colors.white54, fontWeight: FontWeight.w400),
             ),
           ],
         ),
