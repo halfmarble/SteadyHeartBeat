@@ -1534,7 +1534,8 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
 
     // SDNN HRV is only comparable as a resting measurement, and the cleanest
     // resting reading is overnight. We resolve the most recent night (sleep
-    // onset → out of bed, awake periods included) and take the MEDIAN SDNN
+    // onset → final wake; mid-night wake-ups included, the trailing in-bed-awake
+    // period excluded) and take the MEDIAN SDNN
     // across that whole in-bed span — "bed HRV" — rather than grabbing whatever
     // the single latest sample happens to be (a daytime Breathe session or a
     // random midday stillness reading). Median, not mean, because the in-bed
@@ -1952,7 +1953,8 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     // MARK: - Overnight (in-bed) HR, falling back to most recent resting HR
 
     // The heart-rate analog of bed HRV: the mean heart rate across last night's
-    // whole in-bed span (sleep onset → out of bed, awake periods included) —
+    // whole in-bed span (sleep onset → final wake; mid-night wake-ups included,
+    // the trailing in-bed-awake period excluded) —
     // "bed HR". restingHeartRate is one computed value per day with nothing to
     // average over a night, so bed HR averages raw heartRate samples in the
     // window instead. With no usable night — or no HR in it — we fall back to
@@ -2313,7 +2315,7 @@ enum OvernightMath {
     }
     struct Night: Equatable {
         let sleepOnset: Date     // first asleep start (a Night always has sleep)
-        let bedEnd: Date         // last segment end — out of bed
+        let bedEnd: Date         // last asleep segment end — final wake (trailing in-bed-awake excluded)
         let asleepSeconds: Double // total asleep time (overlaps merged)
         // The asleep segments, for the asleep-only "sleep HRV" series (bed HRV
         // uses the whole [sleepOnset, bedEnd] window instead).
@@ -2353,15 +2355,18 @@ enum OvernightMath {
     }
 
     /// Builds a Night from one cluster: onset = first asleep start, bedEnd =
-    /// last segment end, asleepSeconds = union duration of the asleep segments
-    /// (overlaps merged, so two sleep-tracking sources can't double-count). Nil
-    /// when the cluster has no asleep segment (e.g. only inBed recorded).
+    /// last asleep segment end (the final wake — a trailing in-bed-but-awake
+    /// period is excluded; mid-night wake-ups between asleep segments still fall
+    /// inside the [onset, bedEnd] window), asleepSeconds = union duration of the
+    /// asleep segments (overlaps merged, so two sleep-tracking sources can't
+    /// double-count). Nil when the cluster has no asleep segment (e.g. only
+    /// inBed recorded).
     static func night(from cluster: [Segment]) -> Night? {
         let asleep = cluster.filter { $0.isAsleep }
         guard let onset = asleep.map({ $0.start }).min() else { return nil }
         return Night(
             sleepOnset: onset,
-            bedEnd: cluster.map { $0.end }.max() ?? onset,
+            bedEnd: asleep.map { $0.end }.max() ?? onset,
             asleepSeconds: unionDuration(asleep.map { (start: $0.start, end: $0.end) }),
             asleepIntervals: asleep.map { Interval(start: $0.start, end: $0.end) })
     }

@@ -45,14 +45,16 @@ final class OvernightMathTests: XCTestCase {
     // ── night(from:) ─────────────────────────────────────────────────────────────
 
     func testNightOnsetBedEndAndAsleepDuration() {
-        // inBed 0–15 (awake), asleep 15–75, awake 75–80 → onset 15, bed 80, 60m sleep.
+        // inBed 0–15 (awake), asleep 15–75, awake 75–80 → onset 15, bedEnd 75
+        // (final wake — the trailing 75–80 in-bed-awake stretch is excluded),
+        // 60m sleep.
         let n = OvernightMath.night(from: [
             seg(0, 15, asleep: false),
             seg(15, 75, asleep: true),
             seg(75, 80, asleep: false),
         ])
         XCTAssertEqual(n?.sleepOnset, t(15))
-        XCTAssertEqual(n?.bedEnd, t(80))
+        XCTAssertEqual(n?.bedEnd, t(75))
         XCTAssertEqual(n?.asleepSeconds, 60 * 60)
     }
 

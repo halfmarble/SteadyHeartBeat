@@ -34,9 +34,9 @@ class MetricExplainer {
 
 const Map<String, MetricExplainer> kMetricExplainers = {
   'bedHrv': MetricExplainer('bed HRV', [
-    'Bed HRV is the typical (median) heart-rate variability across your whole '
-        'night in bed — from when you fall asleep until you get out of bed, '
-        'brief wake-ups included.',
+    'Bed HRV is the typical (median) heart-rate variability across your night — '
+        'from when you fall asleep until your final wake-up, with brief mid-night '
+        'wake-ups included (the time you lie in bed awake at the end isn’t).',
     'Taking the median across the full in-bed window is deliberately robust to '
         'the watch mislabelling movement as “awake” (common with restless or '
         'dream-enacting sleep), so real sleep isn’t dropped — at the cost of a '
@@ -83,8 +83,9 @@ const Map<String, MetricExplainer> kMetricExplainers = {
         'https://pubmed.ncbi.nlm.nih.gov/37265873/'),
   ]),
   'bedHr': MetricExplainer('bed HR', [
-    'Bed HR is your average heart rate across the same window — your whole night '
-        'in bed, from falling asleep to getting out of bed.',
+    'Bed HR is your average heart rate across the same window — your night, '
+        'from falling asleep to your final wake-up (the time you lie in bed awake '
+        'at the end isn’t counted).',
     'It is close to a resting heart rate but taken over the full night, so brief '
         'stirrings nudge it up a little. Lower, steadier nights generally track '
         'with better recovery.',
