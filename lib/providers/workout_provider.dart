@@ -905,6 +905,43 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
           {int days = 30}) =>
       _workout.getDailyHistory(days: days);
 
+  // ── Personal lifetime distributions (Plus hub) ────────────────────────────
+  // A one-time, cached read of the user's full-history sample values for the
+  // three metrics that have population reference curves, mapped to the
+  // metric-explainer keys. Lean (values only — tens of ms even at 10y), so we
+  // pull once and reuse. Consumed only by the paid Trends explainer, which
+  // shows "vs your own history" alongside the population curve; the free home
+  // explainer never asks for it. Held as a Future so a warm-up call and the
+  // first ⓘ tap share the same in-flight read.
+  Future<Map<String, List<double>>>? _lifetimeValuesFuture;
+
+  /// Cached lifetime sample values keyed by explainer key (bedHrv/restingHrv →
+  /// HRV SDNN, bedHr/restingHr → resting HR, vo2max → VO₂max). Empty lists for
+  /// metrics with no/insufficient history; the explainer gates on count.
+  Future<Map<String, List<double>>> lifetimeMetricValues() =>
+      _lifetimeValuesFuture ??= _pullLifetimeValues();
+
+  Future<Map<String, List<double>>> _pullLifetimeValues() async {
+    try {
+      final raw = await _workout.getMetricSamples(); // ~10y, values only
+      final rhr = raw['restingHeartRate'] ?? const <double>[];
+      final hrv = raw['hrvSDNN'] ?? const <double>[];
+      final vo2 = raw['vo2Max'] ?? const <double>[];
+      return {
+        'restingHr': rhr,
+        'bedHr': rhr,
+        'restingHrv': hrv,
+        'bedHrv': hrv,
+        'vo2max': vo2,
+      };
+    } catch (_) {
+      // A failed read shouldn't be cached as permanent emptiness — let the next
+      // call retry rather than poisoning the cache.
+      _lifetimeValuesFuture = null;
+      return const {};
+    }
+  }
+
   // ── Trends cache (Plus hub) ───────────────────────────────────────────────
   // The hub re-pulled the whole window from HealthKit on every open. This cache
   // keeps the last merged result — in memory AND persisted (loaded in

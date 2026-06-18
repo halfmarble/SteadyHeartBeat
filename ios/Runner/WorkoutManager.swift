@@ -1172,6 +1172,44 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         }
     }
 
+    // MARK: - Personal-history sample values (Plus distributions)
+
+    /// Lean value-only history for the Plus "vs your own history" distributions:
+    /// the raw sample VALUES (no timestamps, no aggregation, no sleep clustering)
+    /// for the three metrics that have population reference curves, over `days`.
+    /// One `HKSampleQuery` per type. These are low-cadence signals, so this is
+    /// tens of milliseconds even at a 10-year window (measured) — unlike raw
+    /// heart rate, which is deliberately not read here. Keys in the result:
+    /// `restingHeartRate`, `hrvSDNN`, `vo2Max`.
+    func getMetricSamples(days: Int, completion: @escaping ([String: Any]) -> Void) {
+        let end = Date()
+        let start = end.addingTimeInterval(-Double(max(1, days)) * 24 * 3600)
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let vo2Unit = HKUnit.literUnit(with: .milli)
+            .unitDivided(by: HKUnit.gramUnit(with: .kilo).unitMultiplied(by: .minute()))
+        let specs: [(String, HKQuantityTypeIdentifier, HKUnit)] = [
+            ("restingHeartRate", .restingHeartRate, HKUnit.count().unitDivided(by: .minute())),
+            ("hrvSDNN", .heartRateVariabilitySDNN, HKUnit(from: "ms")),
+            ("vo2Max", .vo2Max, vo2Unit),
+        ]
+        var out: [String: Any] = [:]
+        let group = DispatchGroup()
+        let lock = NSLock()
+        for (key, id, unit) in specs {
+            group.enter()
+            let q = HKSampleQuery(sampleType: HKQuantityType(id), predicate: predicate,
+                                  limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, _ in
+                let vals = (samples as? [HKQuantitySample] ?? []).map {
+                    $0.quantity.doubleValue(for: unit)
+                }
+                lock.lock(); out[key] = vals; lock.unlock()
+                group.leave()
+            }
+            healthStore.execute(q)
+        }
+        group.notify(queue: .main) { completion(out) }
+    }
+
     // MARK: - Notifications
 
     /// Triggers the system notification permission prompt. Called from
@@ -1743,19 +1781,21 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
             _dailyStats(type: type, options: .cumulativeSum, start: start, anchor: anchor, interval: interval) { stats in
                 var pts: [[String: Any]] = []
                 stats?.enumerateStatistics(from: start, to: now) { stat, _ in
-                    guard stat.startDate < anchor else { return } // exclude the partial current day
                     if let q = stat.sumQuantity() {
                         pts.append(["date": stat.startDate.timeIntervalSince1970, "value": q.doubleValue(for: unit)])
                     }
                 }
-                record(key, pts); group.leave()
+                // Drop the partial current day (pure, unit-tested helper).
+                record(key, WorkoutManager.droppingCurrentDay(
+                    pts, todayStart: anchor.timeIntervalSince1970))
+                group.leave()
             }
         }
 
         // Daily-average heart-rate metrics (Apple writes ~one value per day).
-        // The current (incomplete) day is excluded here too (`stat.startDate <
-        // anchor`) — consistent with the sums above: no chart or calculation uses
-        // the partial current day, so the trend ends on the last finished day.
+        // The current (incomplete) day is dropped here too — consistent with the
+        // sums above: no chart or calculation uses the partial current day, so the
+        // trend ends on the last finished day.
         let avgs: [(String, HKQuantityType)] = [
             ("restHr", HKQuantityType(.restingHeartRate)),
             ("walkHr", HKQuantityType(.walkingHeartRateAverage)),
@@ -1765,12 +1805,13 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
             _dailyStats(type: type, options: .discreteAverage, start: start, anchor: anchor, interval: interval) { stats in
                 var pts: [[String: Any]] = []
                 stats?.enumerateStatistics(from: start, to: now) { stat, _ in
-                    guard stat.startDate < anchor else { return } // skip partial today
                     if let q = stat.averageQuantity() {
                         pts.append(["date": stat.startDate.timeIntervalSince1970, "value": q.doubleValue(for: bpm)])
                     }
                 }
-                record(key, pts); group.leave()
+                record(key, WorkoutManager.droppingCurrentDay(
+                    pts, todayStart: anchor.timeIntervalSince1970))
+                group.leave()
             }
         }
 
@@ -1783,6 +1824,16 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         }
 
         group.notify(queue: .main) { completion(out) }
+    }
+
+    /// Drops daily-history entries on the current (incomplete) calendar day, so a
+    /// partial today never skews a trend. Pure + HealthKit-free so it's unit-
+    /// testable: an entry whose "date" (epoch-seconds day-start) is on/after
+    /// [todayStart] is the in-progress day and is removed; a malformed entry with
+    /// no numeric date is dropped too.
+    static func droppingCurrentDay(_ points: [[String: Any]],
+                                   todayStart: TimeInterval) -> [[String: Any]] {
+        points.filter { (($0["date"] as? Double) ?? .infinity) < todayStart }
     }
 
     // One daily-bucketed statistics-collection query (helper for getDailyHistory).
@@ -1811,9 +1862,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
             // day-start epoch -> (extreme value, time it occurred)
             var hi: [TimeInterval: (val: Double, at: TimeInterval)] = [:]
             var lo: [TimeInterval: (val: Double, at: TimeInterval)] = [:]
-            let todayStart = cal.startOfDay(for: now)
             for s in (samples as? [HKQuantitySample] ?? []) {
-                if s.startDate >= todayStart { continue } // exclude the partial current day
                 let v = s.quantity.doubleValue(for: bpm)
                 let day = cal.startOfDay(for: s.startDate).timeIntervalSince1970
                 let at = s.startDate.timeIntervalSince1970
@@ -1822,7 +1871,10 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
             }
             let mx = hi.keys.sorted().map { ["date": $0, "value": hi[$0]!.val, "at": hi[$0]!.at] as [String: Any] }
             let mn = lo.keys.sorted().map { ["date": $0, "value": lo[$0]!.val, "at": lo[$0]!.at] as [String: Any] }
-            completion(mx, mn)
+            // Drop the partial current day (pure, unit-tested helper).
+            let todayStart = cal.startOfDay(for: now).timeIntervalSince1970
+            completion(WorkoutManager.droppingCurrentDay(mx, todayStart: todayStart),
+                       WorkoutManager.droppingCurrentDay(mn, todayStart: todayStart))
         }
         healthStore.execute(query)
     }

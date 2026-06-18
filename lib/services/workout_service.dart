@@ -206,6 +206,24 @@ class WorkoutService {
     };
   }
 
+  /// Raw sample VALUES (no timestamps, no aggregation) for the distribution
+  /// metrics over the last [days], for the Plus "vs your own history" curves.
+  /// Lean by design — one HKSampleQuery per type, low-cadence signals only — so
+  /// even a 10-year window is tens of milliseconds. Keys: restingHeartRate,
+  /// hrvSDNN, vo2Max.
+  Future<Map<String, List<double>>> getMetricSamples({int days = 3653}) async {
+    final result = await _method
+        .invokeMapMethod<String, dynamic>('getMetricSamples', {'days': days});
+    List<double> vals(String k) => ((result?[k] as List?) ?? const [])
+        .map((e) => (e as num).toDouble())
+        .toList();
+    return {
+      'restingHeartRate': vals('restingHeartRate'),
+      'hrvSDNN': vals('hrvSDNN'),
+      'vo2Max': vals('vo2Max'),
+    };
+  }
+
   /// Per-calendar-day activity & heart-rate history for the Plus trends hub.
   /// Keys: steps, kcal, walkKm, walkHr, restHr, hrMax, hrMin, exMin. Oldest first.
   Future<Map<String, List<Map<String, dynamic>>>> getDailyHistory(

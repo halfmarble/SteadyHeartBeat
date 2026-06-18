@@ -4,8 +4,9 @@ SteadyHeartBeat is built so your health data stays yours. It's read and
 processed entirely on your iPhone, halfmarble never receives it, and the app
 makes no network requests at all. This document explains exactly what that means
 — every way data could conceivably leave your device, and what we do about each.
-Because the app is open source, you can verify every claim here against the code
-(file references are included throughout).
+This is a Glass Box: every claim here is traceable to the code through the file
+references included throughout, so you can verify it rather than take our word
+for it.
 
 ## What "stays on your device" means
 

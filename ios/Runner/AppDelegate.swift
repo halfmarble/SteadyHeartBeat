@@ -133,6 +133,10 @@ import AVFoundation
                     result($0)
                 }
 
+            case "getMetricSamples":
+                let days = (call.arguments as? [String: Any])?["days"] as? Int ?? 3653
+                WorkoutManager.shared.getMetricSamples(days: days) { result($0) }
+
             case "getReadinessHistory":
                 let days = (call.arguments as? [String: Any])?["days"] as? Int ?? 30
                 WorkoutManager.shared.getReadinessHistory(days: days) { result($0) }

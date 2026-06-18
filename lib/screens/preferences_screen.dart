@@ -37,48 +37,6 @@ class PreferencesScreen extends StatelessWidget {
           children: [
             _VoicePrefsEntry(provider: provider),
             const SizedBox(height: 12),
-            // Tactile tick when scrubbing a chart — the workout/session HR chart
-            // (every build) and the Plus trend charts. Near the top so it's easy
-            // to find.
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: kSurface,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.vibration, size: kIconXS, color: kAccent),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('Chart haptics',
-                            style: TextStyle(
-                                color: kTextBright, fontSize: kFontLG)),
-                        SizedBox(height: 2),
-                        Text('Tactile tick when scrubbing charts',
-                            style: TextStyle(
-                                color: kTextSubtle, fontSize: kFontBase)),
-                      ],
-                    ),
-                  ),
-                  CupertinoSwitch(
-                    value: provider.chartHaptics,
-                    activeTrackColor: kAccent,
-                    onChanged: (v) {
-                      provider.setChartHaptics(v);
-                      // Fire a tap when enabling — confirms it's on, and doubles
-                      // as a device-haptics probe.
-                      if (v) HapticFeedback.lightImpact();
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
             _NavRow(
               icon: CupertinoIcons.person,
               title: 'You & your body',
@@ -120,6 +78,47 @@ class PreferencesScreen extends StatelessWidget {
               subtitle: 'Export, delete, or donate to research',
               onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const _DataScreen())),
+            ),
+            const SizedBox(height: 12),
+            // Tactile tick when scrubbing a chart — the workout/session HR chart
+            // (every build) and the Plus trend charts.
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: kSurface,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.vibration, size: kIconXS, color: kAccent),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Chart haptics',
+                            style: TextStyle(
+                                color: kTextBright, fontSize: kFontLG)),
+                        SizedBox(height: 2),
+                        Text('Tactile tick when scrubbing charts',
+                            style: TextStyle(
+                                color: kTextSubtle, fontSize: kFontBase)),
+                      ],
+                    ),
+                  ),
+                  CupertinoSwitch(
+                    value: provider.chartHaptics,
+                    activeTrackColor: kAccent,
+                    onChanged: (v) {
+                      provider.setChartHaptics(v);
+                      // Fire a tap when enabling — confirms it's on, and doubles
+                      // as a device-haptics probe.
+                      if (v) HapticFeedback.lightImpact();
+                    },
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 32),
             _SectionHeader(title: 'UNITS'),

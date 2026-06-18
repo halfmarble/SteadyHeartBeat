@@ -1105,7 +1105,15 @@ class _Metric extends StatelessWidget {
         ? null
         : GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => showMetricExplainer(context, infoKey!),
+            onTap: () {
+              // Pass the user's age/sex + the displayed value so the explainer
+              // can plot it on the matched expected-range gauge.
+              final p = context.read<WorkoutProvider>();
+              showMetricExplainer(context, infoKey!,
+                  age: p.healthAge,
+                  female: p.effectiveSex == 'female',
+                  value: double.tryParse(value));
+            },
             child: const Padding(
               padding: EdgeInsets.symmetric(vertical: 6, horizontal: 14),
               child: Icon(CupertinoIcons.info_circle,

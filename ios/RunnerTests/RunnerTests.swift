@@ -249,3 +249,40 @@ final class AnnounceQueueTests: XCTestCase {
                        [Item(id: 3, isBpm: true), Item(id: 2, isBpm: true)])
     }
 }
+
+// WorkoutManager.droppingCurrentDay — the pure rule that keeps a partial current
+// day out of the daily-history trends (resting/walking HR, steps, HR min/max).
+final class DailyHistoryTests: XCTestCase {
+    private let day: TimeInterval = 86400
+
+    private func dates(_ pts: [[String: Any]]) -> [TimeInterval] {
+        pts.map { $0["date"] as! Double }
+    }
+
+    func testDropsTodayKeepsEarlierDays() {
+        let todayStart = 10 * day
+        let pts: [[String: Any]] = [
+            ["date": 8 * day, "value": 1.0],
+            ["date": 9 * day, "value": 2.0],
+            ["date": 10 * day, "value": 3.0],          // today's bucket → dropped
+            ["date": 10 * day + 3600, "value": 4.0],   // later today  → dropped
+        ]
+        let out = WorkoutManager.droppingCurrentDay(pts, todayStart: todayStart)
+        XCTAssertEqual(dates(out), [8 * day, 9 * day])
+    }
+
+    func testKeepsEverythingWhenTodayIsInTheFuture() {
+        let pts: [[String: Any]] = [["date": 1 * day], ["date": 2 * day]]
+        XCTAssertEqual(WorkoutManager.droppingCurrentDay(pts, todayStart: 100 * day).count, 2)
+    }
+
+    func testEmptyStaysEmpty() {
+        XCTAssertTrue(WorkoutManager.droppingCurrentDay([], todayStart: 0).isEmpty)
+    }
+
+    func testMalformedEntryWithoutDateIsDropped() {
+        let pts: [[String: Any]] = [["value": 1.0], ["date": 5 * day, "value": 2.0]]
+        let out = WorkoutManager.droppingCurrentDay(pts, todayStart: 10 * day)
+        XCTAssertEqual(dates(out), [5 * day])
+    }
+}
