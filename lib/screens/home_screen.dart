@@ -45,7 +45,7 @@ class HomeScreen extends StatelessWidget {
             // kBuildNumber is auto-written by the Xcode "build number" build
             // phase before each iOS build, so it always matches the installed
             // build. The About line uses the same const. "+" marks a build with
-            // the SHB+ module compiled in, so a free-core install and a plus
+            // the Plus module compiled in, so a free-core install and a plus
             // install of the same build number are distinguishable at a glance.
             Text(
               'b$kBuildNumber${context.read<WorkoutProvider>().plus.available ? '+' : ''}',
@@ -55,7 +55,7 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
         actions: [
-          // Trends hub — only when the SHB+ module is present (paid build). The
+          // Trends hub — only when the Plus module is present (paid build). The
           // free core shows no trends entry point at all, so it never surfaces
           // an upsell for a not-yet-purchasable feature.
           if (context.read<WorkoutProvider>().plus.available)
@@ -886,7 +886,7 @@ class _RoundBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final phase = provider.roundPhase;
-    // During an SHB+ module-driven phase (e.g. an HR-gated warm-up) the module
+    // During an Plus module-driven phase (e.g. an HR-gated warm-up) the module
     // supplies its own panel instead of the countdown banner. Null in the free
     // core and outside gated phases.
     final plusBanner = provider.plus.roundBanner(context, phase);
@@ -954,11 +954,13 @@ class _PreWorkoutMetrics extends StatelessWidget {
   Widget build(BuildContext context) {
     final metrics = <Widget>[];
 
-    // Age label: "manual" when overridden, amber when the auto value is stale.
+    // Age label: "manual" when overridden, amber when the auto value is stale,
+    // otherwise tinted to match the value's own colour so the freshness line
+    // reads as part of the same metric.
     String ageLabel(bool manual, DateTime? date) =>
         manual ? 'manual' : _age(date);
-    Color ageTint(bool manual, bool stale) =>
-        manual ? kTextMuted : (stale ? kZone3 : kTextFaint);
+    Color ageTint(bool manual, bool stale, Color valueColor) =>
+        manual ? kTextMuted : (stale ? kZone3 : valueColor);
 
     // Age for grading HRV/VO₂max against age-appropriate norms (see
     // health_norms.dart). Falls back to a mid-adult reference when DOB/age is
@@ -980,12 +982,12 @@ class _PreWorkoutMetrics extends StatelessWidget {
       final overnight = !manual && provider.hrvSource == 'bed';
       metrics.add(_Metric(
         label: overnight ? 'bed HRV' : 'resting HRV',
-        prefix: 'HRV',
+        prefix: '',
         value: ms.round().toString(),
         unit: 'ms',
         color: c,
         age: ageLabel(manual, provider.recentHrvDate),
-        ageColor: ageTint(manual, provider.hrvStale),
+        ageColor: ageTint(manual, provider.hrvStale, c),
         infoKey: overnight ? 'bedHrv' : 'restingHrv',
         // Tap the HRV value → daily-trends hub (the overnight HRV history is
         // shown regardless of whether today's reading is the bed or resting
@@ -1009,12 +1011,12 @@ class _PreWorkoutMetrics extends StatelessWidget {
       final overnight = !manual && provider.restingHrSource == 'bed';
       metrics.add(_Metric(
         label: overnight ? 'bed HR' : 'resting HR',
-        prefix: '❤',
+        prefix: '',
         value: bpm.round().toString(),
         unit: 'bpm',
         color: c,
         age: ageLabel(manual, provider.recentRestingHrDate),
-        ageColor: ageTint(manual, provider.restingHrStale),
+        ageColor: ageTint(manual, provider.restingHrStale, c),
         infoKey: overnight ? 'bedHr' : 'restingHr',
         onValueTap: provider.plus.available
             ? () => provider.plus.openTrends(context, 'bedHr')
@@ -1034,12 +1036,12 @@ class _PreWorkoutMetrics extends StatelessWidget {
       final manual = provider.manualVo2Max != null;
       metrics.add(_Metric(
         label: 'VO₂ max',
-        prefix: 'VO₂',
+        prefix: '',
         value: v.round().toString(),
         unit: 'ml/kg/min',
         color: c,
         age: ageLabel(manual, provider.recentVo2MaxDate),
-        ageColor: ageTint(manual, provider.vo2Stale),
+        ageColor: ageTint(manual, provider.vo2Stale, c),
         infoKey: 'vo2max',
         onValueTap: provider.plus.available
             ? () => provider.plus.openTrends(context, 'vo2max')
@@ -1088,7 +1090,7 @@ class _Metric extends StatelessWidget {
   // Key into kMetricExplainers; null = no ⓘ affordance. The ⓘ (on the label) is
   // a distinct tap target from [onValueTap] (the value → daily-trends chart).
   final String? infoKey;
-  // Tapping the value opens the metric's daily-trends chart (SHB+), via the
+  // Tapping the value opens the metric's daily-trends chart (Plus), via the
   // plus plug point — a teaser when locked. Null = value not tappable.
   final VoidCallback? onValueTap;
 
@@ -1096,38 +1098,32 @@ class _Metric extends StatelessWidget {
   Widget build(BuildContext context) {
     const labelStyle =
         TextStyle(color: kTextDim, fontSize: kFontSM, letterSpacing: 0.4);
-    final Widget labelRow = infoKey == null
-        ? Text(label, style: labelStyle)
+    // The ⓘ opens the metric's explainer; it's a small, distinct tap target
+    // nested inside the larger cell below (bright white, larger — a clear "tap
+    // for info & sources" affordance; the explainer carries the citations).
+    final Widget? infoIcon = infoKey == null
+        ? null
         : GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () => showMetricExplainer(context, infoKey!),
-            child: Padding(
-              // ⓘ stacked above the label, larger and bright white, with
-              // generous padding — a clear, easy-to-hit "tap for info & sources"
-              // affordance (the explainer carries the metric's citations).
-              padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(CupertinoIcons.info_circle,
-                      size: 18, color: Colors.white),
-                  const SizedBox(height: 3),
-                  Text(label, style: labelStyle),
-                ],
-              ),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 6, horizontal: 14),
+              child: Icon(CupertinoIcons.info_circle,
+                  size: 18, color: Colors.white),
             ),
           );
     final Widget valueText = RichText(
       text: TextSpan(children: [
-        TextSpan(
-          text: '$prefix  ',
-          style: TextStyle(
-            color: color.withAlpha(0xAA),
-            fontSize: kFontCaption,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 0.4,
+        if (prefix.isNotEmpty)
+          TextSpan(
+            text: '$prefix  ',
+            style: TextStyle(
+              color: color.withAlpha(0xAA),
+              fontSize: kFontCaption,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.4,
+            ),
           ),
-        ),
         TextSpan(
           text: value,
           style: TextStyle(color: color, fontSize: kFontDisplay, fontWeight: FontWeight.w200),
@@ -1138,29 +1134,40 @@ class _Metric extends StatelessWidget {
         ),
       ]),
     );
-    return Column(
-      children: [
-        labelRow,
-        const SizedBox(height: 4),
-        onValueTap == null
-            ? valueText
-            : GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: onValueTap,
-                // A small chart glyph makes the value visibly tappable (→ the
-                // daily-trends hub) rather than relying on an invisible tap.
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    valueText,
-                    const SizedBox(width: 4),
-                    Icon(Icons.show_chart, size: 13, color: color.withAlpha(0xAA)),
-                  ],
-                ),
+    // The whole cell — label, value, and the freshness line beneath — is one
+    // big, easy-to-hit target that opens the metric's daily-trends chart. The ⓘ
+    // keeps its own nested tap for the explainer; a chart glyph by the value
+    // signals the cell is tappable.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onValueTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (infoIcon != null) ...[
+              infoIcon,
+              const SizedBox(height: 3),
+            ],
+            Text(label, style: labelStyle),
+            const SizedBox(height: 4),
+            if (onValueTap == null)
+              valueText
+            else
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  valueText,
+                  const SizedBox(width: 4),
+                  Icon(Icons.show_chart, size: 13, color: color.withAlpha(0xAA)),
+                ],
               ),
-        if (age.isNotEmpty)
-          Text(age, style: TextStyle(color: ageColor, fontSize: kFontSM)),
-      ],
+            if (age.isNotEmpty)
+              Text(age, style: TextStyle(color: ageColor, fontSize: kFontSM)),
+          ],
+        ),
+      ),
     );
   }
 }

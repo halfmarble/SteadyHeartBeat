@@ -1,9 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Core-side surface of the SHB+ paid module.
+/// Core-side surface of the Plus paid module.
 ///
-/// The core app talks to SHB+ exclusively through this interface. The
+/// The core app talks to Plus exclusively through this interface. The
 /// implementation is selected by `createPlusFeatures` in plus_binding.dart —
 /// the one file that differs between the private repo (real module under
 /// lib/plus/) and the public export (which binds [NoPlusFeatures]). Core code
@@ -13,7 +13,7 @@ abstract class PlusFeatures {
   /// Whether the paid module is compiled into this build at all.
   bool get available;
 
-  /// Whether the user owns the SHB+ unlock (StoreKit entitlement).
+  /// Whether the user owns the Plus unlock (StoreKit entitlement).
   bool get unlocked;
 
   /// Pushes the current StoreKit entitlement into the module. Called by the
@@ -46,7 +46,7 @@ abstract class PlusFeatures {
   /// or null to render the standard banner.
   Widget? roundBanner(BuildContext context, String phase);
 
-  /// Opens the daily-trends view for [metricKey] — the SHB+ chart when the
+  /// Opens the daily-trends view for [metricKey] — the Plus chart when the
   /// upgrade is unlocked, or an upgrade teaser otherwise. Called from the home
   /// readiness snapshot when the user taps a metric value (a distinct affordance
   /// from the ⓘ explainer on the metric's label).
@@ -54,7 +54,7 @@ abstract class PlusFeatures {
 }
 
 /// The free-core binding: no paid module compiled in. Every member is inert,
-/// so the app behaves exactly like the pre-SHB+ free core.
+/// so the app behaves exactly like the pre-Plus free core.
 class NoPlusFeatures implements PlusFeatures {
   @override
   bool get available => false;

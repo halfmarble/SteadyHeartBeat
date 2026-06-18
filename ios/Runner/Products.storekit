@@ -8,13 +8,13 @@
       "internalID" : "A1B2C3D4-SHB-PLUS-000000000002",
       "localizations" : [
         {
-          "description" : "Unlock heart-rate-gated protocols and the SHB+ daily trends — bed HRV, bed HR, VO2 max, sleep and restlessness night to night. A one-time purchase. Yours forever.",
-          "displayName" : "SHB+",
+          "description" : "Unlock heart-rate-gated protocols and the Plus daily trends — bed HRV, bed HR, VO2 max, sleep and restlessness night to night. A one-time purchase. Yours forever.",
+          "displayName" : "Plus",
           "locale" : "en_US"
         }
       ],
       "productID" : "com.halfmarble.steady_heart_beat.plus",
-      "referenceName" : "SHB+ Unlock",
+      "referenceName" : "Plus Unlock",
       "type" : "NonConsumable"
     },
     {
@@ -23,7 +23,7 @@
       "internalID" : "A1B2C3D4-SHB-TIP-0000000000003",
       "localizations" : [
         {
-          "description" : "A small thank-you to support SteadyHeartBeat. Not required and not the SHB+ unlock — just a tip.",
+          "description" : "A small thank-you to support SteadyHeartBeat. Not required and not the Plus unlock — just a tip.",
           "displayName" : "Tip",
           "locale" : "en_US"
         }

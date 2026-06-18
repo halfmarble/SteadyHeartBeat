@@ -131,10 +131,10 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     // boxing countdown/bell/announcement (set in _tickRound).
     private var _suppressBpmUntil: TimeInterval = 0
 
-    // MARK: - SHB+ gate engine plug point
+    // MARK: - Plus gate engine plug point
     //
     // HR-gated phases (warm-up / recovery-gated rest / cool-down) are driven by
-    // the SHB+ module's gate engine, reached only through GateEngineProtocol
+    // the Plus module's gate engine, reached only through GateEngineProtocol
     // (declared at the bottom of this file). The implementation lives in
     // Plus/GateEngine.swift; the public free core carries a stub version of
     // that file whose engine has every enable false — the gated branches below
@@ -491,7 +491,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         _prepSecs = max(0, prepSecs)
     }
 
-    // Offers a method-channel call the core doesn't recognize to the SHB+
+    // Offers a method-channel call the core doesn't recognize to the Plus
     // module (e.g. its gate-config push). Returns true when consumed; the
     // free core's stub engine consumes nothing.
     func handlePlusMethod(_ method: String, arguments: Any?) -> Bool {
@@ -627,7 +627,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         statusEventSink?(payload)
     }
 
-    // MARK: - SHB+ gated-phase seams
+    // MARK: - Plus gated-phase seams
 
     // True while the current phase advances on heart rate (engine-driven)
     // rather than a countdown. Always false with the free core's stub engine.
@@ -1581,7 +1581,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         healthStore.execute(query)
     }
 
-    // MARK: - Readiness daily history (SHB+ trends hub)
+    // MARK: - Readiness daily history (Plus trends hub)
 
     // Per-night history over the last `days` for the trends hub, as
     //   { "hrv": [{date, bedMs, sleepMs?}], "hr": [{date, bpm, sleepBpm?}],
@@ -1743,6 +1743,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
             _dailyStats(type: type, options: .cumulativeSum, start: start, anchor: anchor, interval: interval) { stats in
                 var pts: [[String: Any]] = []
                 stats?.enumerateStatistics(from: start, to: now) { stat, _ in
+                    guard stat.startDate < anchor else { return } // exclude the partial current day
                     if let q = stat.sumQuantity() {
                         pts.append(["date": stat.startDate.timeIntervalSince1970, "value": q.doubleValue(for: unit)])
                     }
@@ -1752,6 +1753,9 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         }
 
         // Daily-average heart-rate metrics (Apple writes ~one value per day).
+        // The current (incomplete) day is excluded here too (`stat.startDate <
+        // anchor`) — consistent with the sums above: no chart or calculation uses
+        // the partial current day, so the trend ends on the last finished day.
         let avgs: [(String, HKQuantityType)] = [
             ("restHr", HKQuantityType(.restingHeartRate)),
             ("walkHr", HKQuantityType(.walkingHeartRateAverage)),
@@ -1761,6 +1765,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
             _dailyStats(type: type, options: .discreteAverage, start: start, anchor: anchor, interval: interval) { stats in
                 var pts: [[String: Any]] = []
                 stats?.enumerateStatistics(from: start, to: now) { stat, _ in
+                    guard stat.startDate < anchor else { return } // skip partial today
                     if let q = stat.averageQuantity() {
                         pts.append(["date": stat.startDate.timeIntervalSince1970, "value": q.doubleValue(for: bpm)])
                     }
@@ -1806,7 +1811,9 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
             // day-start epoch -> (extreme value, time it occurred)
             var hi: [TimeInterval: (val: Double, at: TimeInterval)] = [:]
             var lo: [TimeInterval: (val: Double, at: TimeInterval)] = [:]
+            let todayStart = cal.startOfDay(for: now)
             for s in (samples as? [HKQuantitySample] ?? []) {
+                if s.startDate >= todayStart { continue } // exclude the partial current day
                 let v = s.quantity.doubleValue(for: bpm)
                 let day = cal.startOfDay(for: s.startDate).timeIntervalSince1970
                 let at = s.startDate.timeIntervalSince1970
@@ -2180,9 +2187,9 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {}
 }
 
-// MARK: - SHB+ gate engine surface (core side)
+// MARK: - Plus gate engine surface (core side)
 //
-// The round timer reaches the SHB+ HR-gate engine exclusively through this
+// The round timer reaches the Plus HR-gate engine exclusively through this
 // protocol; phases travel as RoundPhase.rawValue strings so the engine stays
 // decoupled from the private enum. Plus/GateEngine.swift defines
 // makeGateEngine() — the real engine in the private repo, a stub returning
