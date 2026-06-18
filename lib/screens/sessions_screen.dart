@@ -312,10 +312,10 @@ void _showSessionChart(BuildContext context, Map<String, dynamic> session) {
 
 // ── Session chart dialog body ─────────────────────────────────────────────────
 
-/// The full-chart dialog content: header (with a toggle back to portrait), the
-/// chart, and the summary. Opens straight into landscape — the detail is built
-/// for the wide view — and restores portrait when the dialog leaves the tree
-/// (dispose), regardless of how it was dismissed.
+/// The full-chart dialog content: header (with a close button back to the
+/// Sessions list), the chart, and the summary. Opens straight into landscape —
+/// the detail is built for the wide view — and restores portrait when the
+/// dialog leaves the tree (dispose), regardless of how it was dismissed.
 class _SessionChartView extends StatefulWidget {
   const _SessionChartView({
     required this.chart,
@@ -426,8 +426,6 @@ class _SessionChartViewState extends State<_SessionChartView>
   @override
   Widget build(BuildContext context) {
     final opacity = (1 + _dy / _height).clamp(0.0, 1.0);
-    final isLandscape =
-        MediaQuery.of(context).orientation == Orientation.landscape;
     return Opacity(
       opacity: opacity,
       child: Transform.translate(
@@ -462,24 +460,20 @@ class _SessionChartViewState extends State<_SessionChartView>
                           style: const TextStyle(
                               color: kTextSubtle, fontSize: kFontBase)),
                     const SizedBox(width: kSpaceLG),
-                    // Orientation toggle (44px tap target). Reflects the real
-                    // orientation: expand→landscape in portrait, collapse→
-                    // portrait in landscape — always a visible change.
+                    // Close: return to the Sessions list (44px tap target). The
+                    // detail stays in landscape, so this replaces the old
+                    // orientation toggle — swipe-up and double-tap also dismiss.
                     Semantics(
                       button: true,
-                      label: isLandscape
-                          ? 'Back to portrait'
-                          : 'View fullscreen in landscape',
+                      label: 'Return to sessions',
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap: () => _setOrientation(landscape: !isLandscape),
-                        child: SizedBox(
+                        onTap: () => Navigator.of(context).maybePop(),
+                        child: const SizedBox(
                           width: 44,
                           height: 44,
                           child: Icon(
-                            isLandscape
-                                ? Icons.fullscreen_exit
-                                : Icons.fullscreen,
+                            Icons.close,
                             size: kIconMD,
                             color: kCyan,
                           ),
