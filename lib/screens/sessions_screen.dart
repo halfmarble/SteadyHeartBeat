@@ -312,10 +312,10 @@ void _showSessionChart(BuildContext context, Map<String, dynamic> session) {
 
 // ── Session chart dialog body ─────────────────────────────────────────────────
 
-/// The full-chart dialog content: header (with an opt-in expand button that
-/// rotates to fullscreen landscape), the chart, and the summary. Orientation is
-/// forced only when the user taps expand, and always restored when the dialog
-/// leaves the tree (dispose), regardless of how it was dismissed.
+/// The full-chart dialog content: header (with a toggle back to portrait), the
+/// chart, and the summary. Opens straight into landscape — the detail is built
+/// for the wide view — and restores portrait when the dialog leaves the tree
+/// (dispose), regardless of how it was dismissed.
 class _SessionChartView extends StatefulWidget {
   const _SessionChartView({
     required this.chart,
@@ -348,10 +348,20 @@ class _SessionChartViewState extends State<_SessionChartView>
   Animation<double>? _anim;
 
   @override
+  void initState() {
+    super.initState();
+    // Open straight into landscape: the chart detail is built for the wide view
+    // and portrait is too cramped to be useful. The header toggle still drops
+    // back to portrait for anyone who wants it.
+    _setOrientation(landscape: true);
+  }
+
+  @override
   void dispose() {
-    // Always hand rotation control back when the dialog closes — covers every
-    // dismiss path (swipe-up, barrier tap, back gesture).
-    SystemChrome.setPreferredOrientations(const []);
+    // Return the rest of the app to portrait when the dialog closes — covers
+    // every dismiss path (swipe-up, barrier tap, back gesture) so the Sessions
+    // list comes back upright rather than stuck in the detail's landscape.
+    SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
     _ctrl.dispose();
     super.dispose();
   }
