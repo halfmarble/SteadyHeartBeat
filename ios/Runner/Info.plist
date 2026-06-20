@@ -33,7 +33,7 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>SteadyHeartBeat does not record from your microphone. Some AirPods models route audio through the microphone permission for routing controls; this string is shown only if iOS asks for that permission on your behalf.</string>
 	<key>NSMotionUsageDescription</key>
-	<string>SteadyHeartBeat reads the iPhone barometer to measure elevation gain during workouts. Stays on this iPhone.</string>
+	<string>SteadyHeartBeat uses iPhone motion sensors to count your steps and measure elevation gain during workouts. Stays on this iPhone.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>SteadyHeartBeat reads live heart rate and breathing rate from AirPods with heart rate monitoring during workouts, and announces your heart rate aloud through your earbuds. It reads your date of birth and biological sex to calculate personalized heart rate zones and age- and sex-based fitness norms, and reads resting heart rate, cardio fitness (VO₂ max), and heart rate variability from Apple Watch to show your cardiovascular baseline before each session. Stays on this iPhone — nothing leaves it without your explicit permission. If we ever offer a research opt-in, it will be a specific study under IRB approval with openly published findings, and your data will never be sold.</string>
 	<key>NSHealthUpdateUsageDescription</key>

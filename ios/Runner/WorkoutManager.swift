@@ -157,6 +157,15 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     private let _ascentAnnounceStepFeet: Double = 100        // imperial: announce every +100 ft
     private let _metersPerFoot: Double = 0.3048
 
+    // iPhone step + distance counting (CMPedometer). The HKLiveWorkoutBuilder
+    // .stepCount / .distanceWalkingRunning statistics are unreliable on iPhone
+    // (they're built around the Apple Watch and usually come back empty), so we
+    // count steps directly off the motion coprocessor — accurate with the phone
+    // in a pocket or bag, no GPS. Same NSMotionUsageDescription as the altimeter.
+    private let _pedometer = CMPedometer()
+    private var _steps: Double?
+    private var _pedometerDistanceMeters: Double?
+
 
     private override init() {
         super.init()
@@ -1293,6 +1302,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         _lastHrSampleAt = 0
         _lastBpmAnnouncedAt = 0
         _startAltimeter()
+        _startPedometer()
         // Apply the requested cadence before starting the timer so the first
         // announces fire at the user's interval rather than the default.
         _continuousAnnounce = (announceIntervalSeconds <= 0)
@@ -1340,6 +1350,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         _stopRoundTimer()
         _stopAudioEngine()
         _stopAltimeter()
+        _stopPedometer()
         _latestBpm = 0
         _lastHrSampleAt = 0
         _lastBpmAnnouncedAt = 0
@@ -1441,6 +1452,34 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     private func _stopAltimeter() {
         _altimeter.stopRelativeAltitudeUpdates()
         _altRef = nil
+    }
+
+    // Count steps (and a stride-based distance estimate) off the motion
+    // coprocessor for the workout's duration. CMPedometer delivers on a private
+    // background queue, so state mutation and the event emit hop to main —
+    // matching the rest of the event pipeline. No-op if the device can't count
+    // steps, in which case the payload falls back to the workout builder.
+    private func _startPedometer() {
+        _steps = nil
+        _pedometerDistanceMeters = nil
+        guard CMPedometer.isStepCountingAvailable() else { return }
+        _pedometer.startUpdates(from: Date()) { [weak self] data, _ in
+            guard let self = self, let data = data else { return }
+            DispatchQueue.main.async {
+                let steps = data.numberOfSteps.doubleValue
+                self._steps = steps
+                if CMPedometer.isDistanceAvailable(), let dist = data.distance {
+                    self._pedometerDistanceMeters = dist.doubleValue
+                }
+                self.heartRateEventSink?(["steps": steps])
+            }
+        }
+    }
+
+    private func _stopPedometer() {
+        _pedometer.stopUpdates()
+        _steps = nil
+        _pedometerDistanceMeters = nil
     }
 
     // Accumulate total ascent from the relative-altitude stream using a hysteresis
@@ -2213,13 +2252,21 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
             payload["respiratoryRate"] = rr
         }
 
-        if let stats = workoutBuilder.statistics(for: HKQuantityType(.stepCount)),
-           let steps = stats.sumQuantity()?.doubleValue(for: .count()) {
+        // Steps: prefer the CMPedometer count (reliable on iPhone); fall back to
+        // the workout builder's, which iPhone usually leaves empty.
+        if let steps = _steps {
+            payload["steps"] = steps
+        } else if let stats = workoutBuilder.statistics(for: HKQuantityType(.stepCount)),
+                  let steps = stats.sumQuantity()?.doubleValue(for: .count()) {
             payload["steps"] = steps
         }
 
-        if let stats = workoutBuilder.statistics(for: HKQuantityType(.distanceWalkingRunning)),
-           let meters = stats.sumQuantity()?.doubleValue(for: .meter()) {
+        // Distance likewise prefers the pedometer's stride estimate (still not
+        // GPS-accurate, but better than the builder's empty/near-zero value).
+        if let dist = _pedometerDistanceMeters {
+            payload["distanceMeters"] = dist
+        } else if let stats = workoutBuilder.statistics(for: HKQuantityType(.distanceWalkingRunning)),
+                  let meters = stats.sumQuantity()?.doubleValue(for: .meter()) {
             payload["distanceMeters"] = meters
         }
 
