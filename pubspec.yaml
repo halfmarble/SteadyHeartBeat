@@ -1,7 +1,7 @@
 name: steady_heart_beat
 description: SteadyHeartBeat — continuous heart rate monitoring via AirPods Pro 3 with voice readout.
 publish_to: 'none'
-version: 1.0.0+324
+version: 1.0.0+325
 
 environment:
   sdk: ^3.11.3
