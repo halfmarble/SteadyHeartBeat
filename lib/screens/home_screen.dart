@@ -16,6 +16,7 @@ import '../health_norms.dart';
 import 'preferences_screen.dart';
 import 'pre_workout_sheet.dart';
 import 'sessions_screen.dart';
+import 'how_it_works_screen.dart';
 import '../utils.dart';
 import '../widgets/workout_type_icon.dart';
 import '../widgets/metric_explainer.dart';
@@ -79,6 +80,15 @@ class HomeScreen extends StatelessWidget {
             onPressed: () => Navigator.push(
               context,
               CupertinoPageRoute(builder: (_) => const PreferencesScreen()),
+            ),
+          ),
+          // Glass Box "How it works" science screen — the last action.
+          IconButton(
+            tooltip: 'How it works',
+            icon: const Icon(CupertinoIcons.info_circle),
+            onPressed: () => Navigator.push(
+              context,
+              CupertinoPageRoute(builder: (_) => const HowItWorksScreen()),
             ),
           ),
         ],
@@ -479,7 +489,6 @@ class _DriftingBpmOverlayState extends State<_DriftingBpmOverlay> {
     final isError = widget.provider.state == MonitoringState.error;
     final kcal = widget.provider.currentKcal;
     final steps = widget.provider.currentSteps;
-    final dist  = widget.provider.currentDistanceMeters;
     final floors = widget.provider.currentFloorsClimbed;
     _isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
 
@@ -498,7 +507,7 @@ class _DriftingBpmOverlayState extends State<_DriftingBpmOverlay> {
         final offset = _isPortrait
             ? (_portraitPlaced ? _portraitOffsetY : _portraitBottomY)
             : 0.0;
-        final hasSubMetrics = !isError && (steps != null || dist != null || (floors != null && floors > 0));
+        final hasSubMetrics = !isError && (steps != null || (floors != null && floors > 0));
         return Center(
           child: Transform.translate(
             offset: Offset(0, offset),
@@ -578,14 +587,7 @@ class _DriftingBpmOverlayState extends State<_DriftingBpmOverlay> {
                         Text('${fmtSteps(steps)} steps',
                             style: TextStyle(fontSize: kFontLG, fontWeight: FontWeight.w300,
                                 color: Colors.white70, shadows: shadows)),
-                      if (steps != null && dist != null)
-                        Text('  ·  ', style: TextStyle(color: kTextDim,
-                            fontSize: kFontLG, shadows: shadows)),
-                      if (dist != null)
-                        Text(fmtDist(dist, widget.provider.useImperial),
-                            style: TextStyle(fontSize: kFontLG, fontWeight: FontWeight.w300,
-                                color: Colors.white70, shadows: shadows)),
-                      if ((steps != null || dist != null) && floors != null && floors > 0)
+                      if (steps != null && floors != null && floors > 0)
                         Text('  ·  ', style: TextStyle(color: kTextDim,
                             fontSize: kFontLG, shadows: shadows)),
                       if (floors != null && floors > 0)
@@ -2110,10 +2112,20 @@ class BpmChart extends StatelessWidget {
               showTitles: true,
               interval: labelXInterval,
               reservedSize: 22,
-              getTitlesWidget: (value, _) => Text(
-                '${(value / 60).round()}m',
-                style: const TextStyle(color: kTextSubtle, fontSize: kFontSM),
-              ),
+              getTitlesWidget: (value, _) {
+                // Only label true interval ticks. fl_chart also emits a label at
+                // the axis max; when the duration isn't a clean multiple of the
+                // interval, that edge label overprints the last round tick (e.g.
+                // "122m" smeared over "120m"). The exact length is in the header.
+                final r = value % labelXInterval;
+                if (r >= 1 && (labelXInterval - r) >= 1) {
+                  return const SizedBox.shrink();
+                }
+                return Text(
+                  '${(value / 60).round()}m',
+                  style: const TextStyle(color: kTextSubtle, fontSize: kFontSM),
+                );
+              },
             ),
           ),
           leftTitles: AxisTitles(
@@ -2298,7 +2310,6 @@ class _PostWorkoutSummary extends StatelessWidget {
     final effort  = provider.summaryEffortPct;
     final hist    = provider.summaryHistogram;
     final steps   = provider.currentSteps;
-    final dist    = provider.currentDistanceMeters;
     final floors  = provider.currentFloorsClimbed;
     final resp    = provider.currentRespiratoryRate;
 
@@ -2314,47 +2325,33 @@ class _PostWorkoutSummary extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _StatChip('max HR',   '${maxBpm.round()}',       'bpm',  kAccent),
+              _StatChip('max HR',   '${maxBpm.round()}',       'bpm',  kAccent, infoKey: 'maxHr'),
               if (avgBpm != null)
-                _StatChip('avg HR', '${avgBpm.round()}',       'bpm',  kZone3),
+                _StatChip('avg HR', '${avgBpm.round()}',       'bpm',  kZone3, infoKey: 'avgHr'),
               if (dur != null)
                 _StatChip('duration', fmtDuration(dur.inSeconds),             '',     Colors.white70),
               if (kcal != null)
-                _StatChip('kcal',   '${kcal.round()}',         '',     kZone2),
+                _StatChip('kcal',   '${kcal.round()}',         '',     kZone2, infoKey: 'kcal'),
               if (effort != null)
-                _StatChip('effort', '${effort.round()}',       '%',    kCyan),
+                _StatChip('effort', '${effort.round()}',       '%',    kCyan, infoKey: 'effort'),
             ],
           ),
-          if (steps != null || dist != null || (floors != null && floors > 0) || resp != null) ...[
-            const SizedBox(height: 6),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                if (steps != null)
-                  _StatChip('steps',    fmtSteps(steps), '',    Colors.white70),
-                if (dist != null)
-                  _StatChip('distance', fmtDist(dist, provider.useImperial), '', kCyan),
-                if (floors != null && floors > 0)
-                  _StatChip('floors',   '${floors.round()}', '', kZone2),
-                if (resp != null)
-                  _StatChip('resp',     '${resp.round()}', 'br/min', kCyan),
-              ],
-            ),
-          ],
-          if (provider.currentAscentMeters > 0) ...[
-            const SizedBox(height: 6),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _StatChip('ascent',
-                    fmtElevation(provider.currentAscentMeters, provider.useImperial),
-                    '', kZone2),
-                _StatChip('vert work',
-                    provider.currentElevationWorkKJ.toStringAsFixed(0), 'kJ', kCyan),
-                _StatChip('climb', '${provider.elevationKcal.round()}', 'kcal', kZone3),
-              ],
-            ),
-          ],
+          // Activity row — elevation always shown; steps/floors/breaths when present.
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              if (steps != null)
+                _StatChip('steps', fmtSteps(steps), '', Colors.white70),
+              _StatChip('elevation',
+                  fmtElevation(provider.currentAscentMeters, provider.useImperial),
+                  '', kZone2),
+              if (floors != null && floors > 0)
+                _StatChip('floors', '${floors.round()}', '', kZone2),
+              if (resp != null)
+                _StatChip('breaths', '${resp.round()}', 'br/min', kCyan),
+            ],
+          ),
           if (hist != null && hist.isNotEmpty) ...[
             const SizedBox(height: 8),
             SizedBox(
@@ -2372,28 +2369,56 @@ class _PostWorkoutSummary extends StatelessWidget {
 }
 
 class _StatChip extends StatelessWidget {
-  const _StatChip(this.label, this.value, this.unit, this.color);
+  const _StatChip(this.label, this.value, this.unit, this.color, {this.infoKey});
   final String label, value, unit;
   final Color color;
+  // When set, the chip gains a small ⓘ next to its label and becomes tappable,
+  // opening the metric explainer (plain-language meaning + cited sources). Null
+  // chips (duration, steps, ascent, …) stay plain, non-tappable.
+  final String? infoKey;
 
   @override
-  Widget build(BuildContext context) => Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Text(label,
-          style: const TextStyle(color: kTextSubtle, fontSize: 9, letterSpacing: 0.3)),
-      const SizedBox(height: 2),
-      RichText(
-        text: TextSpan(children: [
-          TextSpan(text: value,
-              style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.w200)),
-          if (unit.isNotEmpty)
-            TextSpan(text: ' $unit',
-                style: TextStyle(color: color.withAlpha(0xAA), fontSize: 9)),
-        ]),
-      ),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final chip = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label,
+                style: const TextStyle(
+                    color: kTextSubtle, fontSize: 9, letterSpacing: 0.3)),
+            if (infoKey != null) ...[
+              const SizedBox(width: 3),
+              const Icon(CupertinoIcons.info_circle, size: 11, color: Colors.white),
+            ],
+          ],
+        ),
+        const SizedBox(height: 2),
+        RichText(
+          text: TextSpan(children: [
+            TextSpan(text: value,
+                style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.w200)),
+            if (unit.isNotEmpty)
+              TextSpan(text: ' $unit',
+                  style: TextStyle(color: color.withAlpha(0xAA), fontSize: 9)),
+          ]),
+        ),
+      ],
+    );
+    if (infoKey == null) return chip;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        final p = context.read<WorkoutProvider>();
+        showMetricExplainer(context, infoKey!,
+            age: p.healthAge,
+            female: p.effectiveSex == 'female',
+            value: double.tryParse(value));
+      },
+      child: chip,
+    );
+  }
 }
 
 // ── HR histogram (CustomPainter for pixel-level control) ──────────────────────

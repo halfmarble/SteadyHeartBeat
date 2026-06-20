@@ -7,6 +7,7 @@ import '../services/session_storage_service.dart';
 import '../providers/workout_provider.dart';
 import '../constants.dart';
 import '../utils.dart';
+import '../widgets/metric_explainer.dart';
 import '../widgets/workout_type_icon.dart';
 import 'home_screen.dart' show BpmChart;
 
@@ -249,8 +250,9 @@ void _showSessionChart(BuildContext context, Map<String, dynamic> session) {
 
   final useImperial = context.read<WorkoutProvider>().useImperial;
   final type = _workoutTypeForKey(session['workoutType'] as String? ?? 'other');
-  final dist = (session['distanceMeters'] as num?)?.toDouble();
-  final distLabel = dist != null ? fmtDist(dist, useImperial) : null;
+  // Steps replace distance in the header — distance is GPS-free and unreliable.
+  final steps = (session['steps'] as num?)?.toDouble();
+  final subLabel = steps != null ? '${fmtSteps(steps)} steps' : null;
   DateTime? end;
   final endRaw = session['endTime'] as String?;
   if (endRaw != null) {
@@ -300,7 +302,7 @@ void _showSessionChart(BuildContext context, Map<String, dynamic> session) {
         child: _SessionChartView(
           chart: chart,
           type: type,
-          distLabel: distLabel,
+          subLabel: subLabel,
           end: end,
           session: session,
           useImperial: useImperial,
@@ -320,14 +322,14 @@ class _SessionChartView extends StatefulWidget {
   const _SessionChartView({
     required this.chart,
     required this.type,
-    required this.distLabel,
+    required this.subLabel,
     required this.end,
     required this.session,
     required this.useImperial,
   });
   final BpmChart chart;
   final WorkoutType type;
-  final String? distLabel;
+  final String? subLabel;
   final DateTime? end;
   final Map<String, dynamic> session;
   final bool useImperial;
@@ -346,6 +348,9 @@ class _SessionChartViewState extends State<_SessionChartView>
   late final AnimationController _ctrl =
       AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
   Animation<double>? _anim;
+  // The dialog's own route, watched so we can rotate back to portrait the moment
+  // dismissal begins — see didChangeDependencies / _onRouteAnim.
+  ModalRoute<dynamic>? _route;
 
   @override
   void initState() {
@@ -357,10 +362,31 @@ class _SessionChartViewState extends State<_SessionChartView>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Watch the dialog route's animation so we rotate back to portrait the
+    // instant *any* dismiss begins (close button, swipe-up, double-tap, barrier
+    // tap, back gesture). Requesting portrait here — while the close transition
+    // is still playing — means the rotation runs concurrently with the fade-out,
+    // so the Sessions list is revealed already upright instead of flashing
+    // landscape and then rotating.
+    final r = ModalRoute.of(context);
+    if (r != _route) {
+      _route?.animation?.removeStatusListener(_onRouteAnim);
+      _route = r;
+      _route?.animation?.addStatusListener(_onRouteAnim);
+    }
+  }
+
+  void _onRouteAnim(AnimationStatus status) {
+    if (status == AnimationStatus.reverse) _setOrientation(landscape: false);
+  }
+
+  @override
   void dispose() {
-    // Return the rest of the app to portrait when the dialog closes — covers
-    // every dismiss path (swipe-up, barrier tap, back gesture) so the Sessions
-    // list comes back upright rather than stuck in the detail's landscape.
+    _route?.animation?.removeStatusListener(_onRouteAnim);
+    // Safety net: ensure portrait is restored however the dialog left the tree
+    // (e.g. an instantaneous removal that skips the reverse transition).
     SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
     _ctrl.dispose();
     super.dispose();
@@ -426,6 +452,7 @@ class _SessionChartViewState extends State<_SessionChartView>
   @override
   Widget build(BuildContext context) {
     final opacity = (1 + _dy / _height).clamp(0.0, 1.0);
+    final durSecs = (widget.session['durationSeconds'] as num?)?.toInt();
     return Opacity(
       opacity: opacity,
       child: Transform.translate(
@@ -446,9 +473,17 @@ class _SessionChartViewState extends State<_SessionChartView>
                             color: Colors.white,
                             fontSize: kFontLG,
                             fontWeight: FontWeight.w600)),
-                    if (widget.distLabel != null) ...[
+                    if (durSecs != null) ...[
                       const SizedBox(width: kSpaceMD),
-                      Text(widget.distLabel!,
+                      Text('${fmtDuration(durSecs)} min',
+                          style: const TextStyle(
+                              color: kTextSubtle,
+                              fontSize: kFontLG,
+                              fontWeight: FontWeight.w400)),
+                    ],
+                    if (widget.subLabel != null) ...[
+                      const SizedBox(width: kSpaceMD),
+                      Text(widget.subLabel!,
                           style: const TextStyle(
                               color: kCyan,
                               fontSize: kFontLG,
@@ -523,9 +558,9 @@ class _SessionCard extends StatelessWidget {
     final kcal     = (session['kcal']      as num?)?.toDouble();
     final effort   = (session['effortPct'] as num?)?.toDouble();
     final steps    = (session['steps']     as num?)?.toDouble();
-    final dist     = (session['distanceMeters'] as num?)?.toDouble();
     final floors   = (session['floorsClimbed']  as num?)?.toDouble();
     final resp     = (session['respiratoryRate'] as num?)?.toDouble();
+    final ascent   = (session['ascentMeters']    as num?)?.toDouble() ?? 0;
     final hist     = _parseHistogram(session['histogram']);
     final zoneSecs = (session['zoneSecs'] as List?)
         ?.map((v) => (v as num).toDouble())
@@ -540,9 +575,9 @@ class _SessionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row mirrors the full-chart screen: icon · name · distance
-          // (left) · date (right), all on one line. Duration moves into the
-          // stats row below. Deletion is swipe-to-delete (Dismissible wrapper).
+          // Header row mirrors the full-chart screen: icon · name · duration ·
+          // distance (left) · date (right), all on one line. Deletion is
+          // swipe-to-delete (Dismissible wrapper).
           Row(
             children: [
               WorkoutTypeIcon(type: type, size: kIconMD, color: kTextMuted),
@@ -552,9 +587,17 @@ class _SessionCard extends StatelessWidget {
                       color: Colors.white,
                       fontSize: kFontLG,
                       fontWeight: FontWeight.w600)),
-              if (dist != null) ...[
+              if (durSecs > 0) ...[
                 const SizedBox(width: kSpaceMD),
-                Text(fmtDist(dist, useImperial),
+                Text('${fmtDuration(durSecs)} min',
+                    style: const TextStyle(
+                        color: kTextSubtle,
+                        fontSize: kFontLG,
+                        fontWeight: FontWeight.w400)),
+              ],
+              if (steps != null) ...[
+                const SizedBox(width: kSpaceMD),
+                Text('${fmtSteps(steps)} steps',
                     style: const TextStyle(
                         color: kCyan,
                         fontSize: kFontLG,
@@ -583,34 +626,28 @@ class _SessionCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               if (maxBpm != null)
-                _Chip('max HR', '${maxBpm.round()}', 'bpm', kAccent),
+                _Chip('max HR', '${maxBpm.round()}', 'bpm', kAccent, infoKey: 'maxHr'),
               if (avgBpm != null)
-                _Chip('avg HR', '${avgBpm.round()}', 'bpm', kZone3),
-              if (durSecs > 0)
-                _Chip('duration', fmtDuration(durSecs), '', Colors.white70),
+                _Chip('avg HR', '${avgBpm.round()}', 'bpm', kZone3, infoKey: 'avgHr'),
               if (kcal != null)
-                _Chip('kcal', '${kcal.round()}', '', kZone2),
+                _Chip('kcal', '${kcal.round()}', '', kZone2, infoKey: 'kcal'),
               if (effort != null)
-                _Chip('effort', '${effort.round()}', '%', kCyan),
+                _Chip('effort', '${effort.round()}', '%', kCyan, infoKey: 'effort'),
             ],
           ),
-          // Activity stats (distance lives in the header next to the title)
-          if (steps != null ||
-              (floors != null && floors > 0) ||
-              resp != null) ...[
-            const SizedBox(height: kSpaceSM),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                if (steps != null)
-                  _Chip('steps', fmtSteps(steps), '', Colors.white70),
-                if (floors != null && floors > 0)
-                  _Chip('floors', '${floors.round()}', '', kZone2),
-                if (resp != null)
-                  _Chip('resp', '${resp.round()}', 'br/min', kCyan),
-              ],
-            ),
-          ],
+          // Activity stats — elevation always shown; floors/breaths when present.
+          // (steps & duration live in the header next to the title.)
+          const SizedBox(height: kSpaceSM),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _Chip('elevation', fmtElevation(ascent, useImperial), '', kZone2),
+              if (floors != null && floors > 0)
+                _Chip('floors', '${floors.round()}', '', kZone2),
+              if (resp != null)
+                _Chip('breaths', '${resp.round()}', 'br/min', kCyan),
+            ],
+          ),
           // Zone time bar
           if (zoneSecs != null && zoneSecs.any((s) => s > 0)) ...[
             const SizedBox(height: kSpaceLG),
@@ -669,16 +706,12 @@ class _SessionSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final maxBpm  = _d(session['maxBpm']);
     final avgBpm  = _d(session['avgBpm']);
-    final durSecs = (session['durationSeconds'] as num?)?.toInt();
     final kcal    = _d(session['kcal']);
     final effort  = _d(session['effortPct']);
-    final steps   = _d(session['steps']);
-    final floors  = _d(session['floorsClimbed']);
     final resp    = _d(session['respiratoryRate']);
-    // Distance is shown in the dialog header (next to the workout label), so it
-    // is intentionally omitted from these chips. The HR histogram is omitted
-    // too — it duplicates the line chart above; dropping it gives the chart
-    // more room.
+    final ascent  = _d(session['ascentMeters']) ?? 0;
+    // Distance & duration are shown in the dialog header; the HR histogram is
+    // omitted too (it duplicates the line chart above), giving the chart room.
     final zoneSecs = (session['zoneSecs'] as List?)
         ?.map((v) => (v as num).toDouble())
         .toList();
@@ -689,34 +722,22 @@ class _SessionSummary extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // One stat line — the rest of the values (duration lives in the header).
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _Chip('max HR', '${maxBpm.round()}', 'bpm', kAccent),
+            _Chip('max HR', '${maxBpm.round()}', 'bpm', kAccent, infoKey: 'maxHr'),
             if (avgBpm != null)
-              _Chip('avg HR', '${avgBpm.round()}', 'bpm', kZone3),
-            if (durSecs != null)
-              _Chip('duration', fmtDuration(durSecs), '', Colors.white70),
+              _Chip('avg HR', '${avgBpm.round()}', 'bpm', kZone3, infoKey: 'avgHr'),
             if (kcal != null)
-              _Chip('kcal', '${kcal.round()}', '', kZone2),
+              _Chip('kcal', '${kcal.round()}', '', kZone2, infoKey: 'kcal'),
             if (effort != null)
-              _Chip('effort', '${effort.round()}', '%', kCyan),
+              _Chip('effort', '${effort.round()}', '%', kCyan, infoKey: 'effort'),
+            _Chip('elevation', fmtElevation(ascent, useImperial), '', kZone2),
+            if (resp != null)
+              _Chip('breaths', '${resp.round()}', 'br/min', kCyan),
           ],
         ),
-        if (steps != null || (floors != null && floors > 0) || resp != null) ...[
-          const SizedBox(height: kSpaceSM),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              if (steps != null)
-                _Chip('steps', fmtSteps(steps), '', Colors.white70),
-              if (floors != null && floors > 0)
-                _Chip('floors', '${floors.round()}', '', kZone2),
-              if (resp != null)
-                _Chip('resp', '${resp.round()}', 'br/min', kCyan),
-            ],
-          ),
-        ],
         if (zoneSecs != null && zoneSecs.any((s) => s > 0)) ...[
           const SizedBox(height: kSpaceMD),
           _ZoneBar(zoneSecs: zoneSecs),
@@ -730,38 +751,63 @@ class _SessionSummary extends StatelessWidget {
 // ── Stat chip ─────────────────────────────────────────────────────────────────
 
 class _Chip extends StatelessWidget {
-  const _Chip(this.label, this.value, this.unit, this.color);
+  const _Chip(this.label, this.value, this.unit, this.color, {this.infoKey});
   final String label, value, unit;
   final Color color;
+  // When set, the chip gains a small ⓘ next to its label and becomes tappable,
+  // opening the metric explainer (meaning + cited sources). Null chips stay
+  // plain.
+  final String? infoKey;
 
   @override
-  Widget build(BuildContext context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  color: kTextDim,
-                  fontSize: kFontXS,
-                  letterSpacing: 0.3)),
-          const SizedBox(height: kSpaceXS),
-          RichText(
-            text: TextSpan(children: [
+  Widget build(BuildContext context) {
+    final chip = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label,
+                style: const TextStyle(
+                    color: kTextDim, fontSize: kFontXS, letterSpacing: 0.3)),
+            if (infoKey != null) ...[
+              const SizedBox(width: 3),
+              const Icon(CupertinoIcons.info_circle,
+                  size: 11, color: Colors.white),
+            ],
+          ],
+        ),
+        const SizedBox(height: kSpaceXS),
+        RichText(
+          text: TextSpan(children: [
+            TextSpan(
+                text: value,
+                style: TextStyle(
+                    color: color,
+                    fontSize: kFontStat,
+                    fontWeight: FontWeight.w200)),
+            if (unit.isNotEmpty)
               TextSpan(
-                  text: value,
+                  text: ' $unit',
                   style: TextStyle(
-                      color: color,
-                      fontSize: kFontStat,
-                      fontWeight: FontWeight.w200)),
-              if (unit.isNotEmpty)
-                TextSpan(
-                    text: ' $unit',
-                    style: TextStyle(
-                        color: color.withAlpha(kAlphaMuted),
-                        fontSize: kFontXS)),
-            ]),
-          ),
-        ],
-      );
+                      color: color.withAlpha(kAlphaMuted), fontSize: kFontXS)),
+          ]),
+        ),
+      ],
+    );
+    if (infoKey == null) return chip;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        final p = context.read<WorkoutProvider>();
+        showMetricExplainer(context, infoKey!,
+            age: p.healthAge,
+            female: p.effectiveSex == 'female',
+            value: double.tryParse(value));
+      },
+      child: chip,
+    );
+  }
 }
 
 // ── Zone time bar ─────────────────────────────────────────────────────────────

@@ -32,6 +32,21 @@ class MetricExplainer {
       {this.sources = const []});
 }
 
+// Shared citations, reused across the workout-stat explainers and the standalone
+// "How it works" science screen so both surfaces cite the same sources.
+const Citation kCiteTanaka = Citation(
+    'Age-predicted maximum heart rate — Tanaka, Monahan & Seals, J Am Coll '
+    'Cardiol 2001',
+    'https://doi.org/10.1016/S0735-1097(00)01054-8');
+const Citation kCiteAcsmIntensity = Citation(
+    'Exercise intensity by %max HR — ACSM Position Stand (Garber et al.), Med '
+    'Sci Sports Exerc 2011',
+    'https://pubmed.ncbi.nlm.nih.gov/21694556/');
+const Citation kCiteZonesThreshold = Citation(
+    '%max-HR zones vs. threshold anchoring — Wolpern et al., BMC Sports Sci Med '
+    'Rehabil 2015',
+    'https://pubmed.ncbi.nlm.nih.gov/26146564/');
+
 const Map<String, MetricExplainer> kMetricExplainers = {
   'bedHrv': MetricExplainer('bed HRV', [
     'Bed HRV is the typical (median) heart-rate variability across your night — '
@@ -137,6 +152,47 @@ const Map<String, MetricExplainer> kMetricExplainers = {
     Citation('Apple Watch VO₂ max validity — PLOS ONE 2025',
         'https://pubmed.ncbi.nlm.nih.gov/40373042/'),
   ]),
+  // ── Workout-stat explainers (the ⓘ on the post-workout / saved-session chips).
+  'maxHr': MetricExplainer('max HR', [
+    'This is the highest heart rate your AirPods recorded during this workout — '
+        'your single peak reading, straight from the sensor, with no formula '
+        'applied.',
+    'Don’t confuse it with your estimated maximum heart rate, which we work out '
+        'from your age (208 − 0.7 × age) and use to set your zones, your effort '
+        'percentage, and the danger threshold. Your measured peak can land above '
+        'or below that estimate — the estimate is a population average, and real '
+        'maximums vary a lot from person to person.',
+    'This is a general wellness reading, not a medical measurement.',
+  ], sources: [kCiteTanaka]),
+  'avgHr': MetricExplainer('avg HR', [
+    'Your average heart rate across the whole workout, weighted by time — longer '
+        'stretches count for more than brief spikes, so it reflects how hard the '
+        'session was overall rather than any single moment.',
+    'This is a general wellness reading, not a medical measurement.',
+  ]),
+  'effort': MetricExplainer('effort', [
+    'Effort is your average heart rate as a percentage of your estimated maximum '
+        '(average HR ÷ estimated max HR × 100). As a rough guide, 60–70% is easy '
+        'aerobic work, 70–80% is tempo, 80–90% is hard, and 90%+ is near your '
+        'ceiling.',
+    'Because it’s built on an age-estimated maximum (208 − 0.7 × age), read it '
+        'as a rough guide, not a precise figure. Percent-of-max is a coarse way '
+        'to gauge intensity — anchoring to your own measured thresholds is more '
+        'accurate — and some conditions, including the effect of certain '
+        'Parkinson’s medications on heart rate, can blunt the response and make '
+        'the number read low for the real effort.',
+    'This is a general wellness reading, not a medical measurement.',
+  ], sources: [kCiteTanaka, kCiteAcsmIntensity, kCiteZonesThreshold]),
+  'kcal': MetricExplainer('kcal', [
+    'This calorie figure comes straight from Apple Health’s own active-energy '
+        'estimate for the workout, which iOS calculates from your heart rate, '
+        'movement, and body metrics. We show it as-is — it isn’t computed by '
+        'this app.',
+    'Apple’s method is its own, and like every wearable calorie estimate it’s an '
+        'approximation, so follow the trend rather than reading any single '
+        'number as exact.',
+    'This is a general wellness estimate, not a medical measurement.',
+  ]),
 };
 
 /// Presents the explainer for [key] as a bottom sheet. No-op for an unknown key.
@@ -238,20 +294,7 @@ Future<void> showMetricExplainer(BuildContext context, String key,
                       ),
                       const SizedBox(height: 12),
                     ],
-                    if (info.sources.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      const Text('SOURCES',
-                          style: TextStyle(
-                              color: kTextMuted,
-                              fontSize: kFontSM,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.2)),
-                      const SizedBox(height: 10),
-                      for (final c in info.sources) ...[
-                        _CitationRow(c),
-                        const SizedBox(height: 10),
-                      ],
-                    ],
+                    SourcesBlock(info.sources),
                   ],
                 ),
               ),
@@ -834,11 +877,41 @@ class _HistogramPainter extends CustomPainter {
       !identical(old.dist, dist);
 }
 
+/// The "SOURCES" header followed by one [CitationRow] per source — the cited
+/// footer of a metric explainer. Pulled out so the standalone "How it works"
+/// science screen cites in exactly the same style. Renders nothing when empty.
+class SourcesBlock extends StatelessWidget {
+  const SourcesBlock(this.sources, {super.key});
+  final List<Citation> sources;
+
+  @override
+  Widget build(BuildContext context) {
+    if (sources.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 4),
+        const Text('SOURCES',
+            style: TextStyle(
+                color: kTextMuted,
+                fontSize: kFontSM,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2)),
+        const SizedBox(height: 10),
+        for (final c in sources) ...[
+          CitationRow(c),
+          const SizedBox(height: 10),
+        ],
+      ],
+    );
+  }
+}
+
 /// One source row under "SOURCES": a link icon + label that opens the citation
 /// (PubMed / PMC / DOI) in the browser. Textbook citations (no [Citation.url])
 /// render as plain, non-tappable text with a book icon.
-class _CitationRow extends StatelessWidget {
-  const _CitationRow(this.citation);
+class CitationRow extends StatelessWidget {
+  const CitationRow(this.citation, {super.key});
   final Citation citation;
 
   @override

@@ -1497,6 +1497,13 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
       'steps':           currentSteps?.round(),
       'distanceMeters':  currentDistanceMeters,
       'floorsClimbed':   currentFloorsClimbed?.round(),
+      // Climbing-energy snapshot (always stored; 0 on flat workouts) so saved
+      // sessions can show the same ascent / vert work / climb trio as the live
+      // summary. kcal/work are snapshotted at save time (they depend on the body
+      // mass then in effect), not recomputed on display.
+      'ascentMeters':    currentAscentMeters,
+      'elevationWorkKJ': currentElevationWorkKJ,
+      'elevationKcal':   elevationKcal,
       'effortPct':       summaryEffortPct,
       'zoneSecs':        zoneSecs,
       // JSON requires string keys in maps
