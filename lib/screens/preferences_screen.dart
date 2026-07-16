@@ -56,7 +56,7 @@ class PreferencesScreen extends StatelessWidget {
             _NavRow(
               icon: CupertinoIcons.bell,
               title: 'Alerts',
-              subtitle: 'Danger zone & background alerts',
+              subtitle: 'Ceiling & background alerts',
               onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const _AlertsScreen())),
             ),
@@ -230,7 +230,7 @@ class _PrefSubScreen extends StatelessWidget {
 }
 
 /// "You & your body" — the physiological profile that personalizes zones, the
-/// danger threshold, VO₂ grading, and the climbing-energy estimate.
+/// ceiling alert, VO₂ grading, and the climbing-energy estimate.
 class _BodyScreen extends StatelessWidget {
   const _BodyScreen();
   @override
@@ -239,7 +239,7 @@ class _BodyScreen extends StatelessWidget {
       title: 'You & your body',
       children: (provider) => [
         const Text(
-          'These personalize your heart-rate zones, the danger threshold, VO₂ '
+          'These personalize your heart-rate zones, the ceiling alert, VO₂ '
           'grading, and the climbing-energy estimate.',
           style: TextStyle(color: kTextSubtle, fontSize: kFontBase, height: 1.4),
         ),
@@ -248,7 +248,7 @@ class _BodyScreen extends StatelessWidget {
         const SizedBox(height: 8),
         const Text(
           'Age sets your estimated max heart rate (208 − 0.7 × age), which drives '
-          'your zones and the danger threshold. Sex grades VO₂ max against age- '
+          'your zones and the ceiling alert. Sex grades VO₂ max against age- '
           'and sex-specific norms.',
           style: TextStyle(color: kTextSubtle, fontSize: kFontCaption, height: 1.4),
         ),
@@ -293,7 +293,7 @@ class _AppleHealthScreen extends StatelessWidget {
   }
 }
 
-/// "Alerts" — the danger-zone threshold and background-notification behavior.
+/// "Alerts" — the ceiling-alert threshold and background-notification behavior.
 class _AlertsScreen extends StatelessWidget {
   const _AlertsScreen();
   @override
@@ -301,12 +301,13 @@ class _AlertsScreen extends StatelessWidget {
     return _PrefSubScreen(
       title: 'Alerts',
       children: (provider) => [
-        _SectionHeader(title: 'DANGER ZONE'),
+        _SectionHeader(title: 'CEILING ALERT'),
         const SizedBox(height: 8),
         const Text(
-          'We alert you when your heart rate gets dangerously high. The threshold '
-          'is 90% of your max heart rate, calculated from your age (set under You '
-          '& your body).',
+          'We alert you when your heart rate nears your estimated ceiling. The '
+          'threshold is 90% of your estimated max heart rate, calculated from '
+          'your age (set under You & your body) — a fitness-intensity guide, not '
+          'a personal medical limit.',
           style: TextStyle(color: kTextSubtle, fontSize: kFontBase, height: 1.4),
         ),
         const SizedBox(height: 32),
@@ -849,8 +850,9 @@ class _HealthConditionsSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Do you have any of the following? This helps us apply '
-          'appropriate heart rate defaults for your workouts. '
+          'Optional, for your own record. What you note here is kept with your '
+          'profile and included when you export your data — it does not change '
+          'any reading, zone, or alert. '
           'Stays on this iPhone — nothing leaves it without your explicit permission.',
           style: TextStyle(color: kTextSubtle, fontSize: kFontBase, height: 1.4),
         ),

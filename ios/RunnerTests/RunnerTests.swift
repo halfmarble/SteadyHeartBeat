@@ -288,3 +288,44 @@ final class DailyHistoryTests: XCTestCase {
         XCTAssertEqual(dates(out), [5 * day])
     }
 }
+
+// NoGateEngine — the free core's inert gate engine (the one the public build
+// ships via the stub makeGateEngine). Every enable must stay false and every
+// hook must stay a no-op: the gated branches in WorkoutManager are unreachable
+// exactly as long as these hold.
+final class NoGateEngineTests: XCTestCase {
+    func testEverythingDisabled() {
+        let e = NoGateEngine()
+        XCTAssertFalse(e.warmupEnabled)
+        XCTAssertFalse(e.restEnabled)
+        XCTAssertFalse(e.cooldownEnabled)
+    }
+
+    func testConsumesNoMethodsEvenWithEnablingPayload() {
+        let e = NoGateEngine()
+        let args: [String: Any] = [
+            "warmupEnabled": true, "restEnabled": true, "cooldownEnabled": true,
+            "warmupTargetBpm": 120, "restTargetBpm": 110, "cooldownTargetBpm": 90,
+        ]
+        XCTAssertFalse(e.handle(method: "setGateConfig", arguments: args))
+        // Still inert after the push attempt.
+        XCTAssertFalse(e.warmupEnabled)
+        XCTAssertFalse(e.restEnabled)
+        XCTAssertFalse(e.cooldownEnabled)
+        XCTAssertTrue(e.statusPayload(bpm: 120).isEmpty)
+    }
+
+    func testTickAdvancesImmediatelyAndSpeaksNothing() {
+        let e = NoGateEngine()
+        e.reset()
+        XCTAssertEqual(e.enterPhase("warmup"), "")
+        var spoken: [String] = []
+        // Advances on the first tick (true) so a phase can never wedge, and
+        // never emits a cue.
+        XCTAssertTrue(e.tick(phase: "warmup", bpm: 0, speak: { spoken.append($0) }))
+        XCTAssertTrue(spoken.isEmpty)
+        XCTAssertNil(e.exitCue("warmup"))
+        XCTAssertNil(e.exitCue("rest"))
+        XCTAssertNil(e.exitCue("cooldown"))
+    }
+}

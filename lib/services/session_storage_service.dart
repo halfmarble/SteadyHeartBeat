@@ -16,6 +16,13 @@ import 'backup_exclusion.dart';
 class SessionStorageService {
   static const _inProgressFilename = 'in_progress.json';
 
+  // Serialises every in-progress write so [clearInProgress] can wait for the
+  // tail of the chain. Without this, a throttled fire-and-forget snapshot
+  // still in flight when the final save deletes the file can land AFTER the
+  // delete — resurrecting in_progress.json, which the next launch then
+  // "recovers" as a duplicate session.
+  static Future<void> _inProgressChain = Future.value();
+
   static Future<Directory> _dir() async {
     final docs = await getApplicationDocumentsDirectory();
     final dir = Directory('${docs.path}/sessions');
@@ -43,8 +50,15 @@ class SessionStorageService {
   /// Writes the in-progress workout snapshot. Overwrites any prior snapshot
   /// (one workout in flight at a time). Silently fails — losing one snapshot
   /// is recoverable on the next call; we'd rather drop the snapshot than crash
-  /// the workout flow.
-  static Future<void> saveInProgress(Map<String, dynamic> session) async {
+  /// the workout flow. Writes are chained so [clearInProgress] can await any
+  /// snapshot still in flight before deleting.
+  static Future<void> saveInProgress(Map<String, dynamic> session) {
+    final next = _inProgressChain.then((_) => _writeInProgress(session));
+    _inProgressChain = next;
+    return next;
+  }
+
+  static Future<void> _writeInProgress(Map<String, dynamic> session) async {
     try {
       final dir = await _dir();
       await File('${dir.path}/$_inProgressFilename').writeAsString(jsonEncode(session));
@@ -67,6 +81,9 @@ class SessionStorageService {
   }
 
   static Future<void> clearInProgress() async {
+    // Let any snapshot write still in flight land first, so the delete below
+    // is guaranteed to be the last touch on the file.
+    await _inProgressChain;
     try {
       final dir = await _dir();
       final file = File('${dir.path}/$_inProgressFilename');

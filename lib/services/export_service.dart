@@ -75,30 +75,53 @@ class ExportService {
       .replaceAll(':', '-')
       .replaceAll('.', '-');
 
+  /// Test seam for the actual share-sheet presentation, so the write → share →
+  /// delete flow can be exercised without the platform channel.
+  @visibleForTesting
+  static Future<void> Function(XFile file, String subject, Rect? origin)
+      sharePresenter = _presentShareSheet;
+
+  static Future<void> _presentShareSheet(
+      XFile file, String subject, Rect? origin) async {
+    await Share.shareXFiles([file], subject: subject, sharePositionOrigin: origin);
+  }
+
   /// Writes [content] to a temp file named [filename] and presents the system
   /// share sheet. Returns null on success (dismissing the sheet still counts) or
   /// a step-tagged error string. Shared by the data export and the research
-  /// donation. The temp file is the user's to keep once shared; it is not the
-  /// protected store. [origin] must be a NON-ZERO rect within the source view —
-  /// iOS rejects a zero-size sharePositionOrigin even on iPhone.
+  /// donation. The temp file only exists for the duration of the share — the
+  /// share sheet's recipient takes its own copy, and leaving a plaintext health
+  /// export in the tmp dir (which is outside the backup-excluded stores) would
+  /// defeat the point of protecting the real ones. [origin] must be a NON-ZERO
+  /// rect within the source view — iOS rejects a zero-size sharePositionOrigin
+  /// even on iPhone.
   static Future<String?> shareJsonFile(String content, String filename,
       {Rect? origin, String? subject}) async {
     var step = 'tempdir';
+    File? file;
     try {
       final dir = await getTemporaryDirectory();
       step = 'write';
-      final file = File('${dir.path}/$filename');
+      file = File('${dir.path}/$filename');
       await file.writeAsString(content);
       step = 'share';
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'application/json')],
-        subject: subject ?? filename,
-        sharePositionOrigin: origin,
+      await sharePresenter(
+        XFile(file.path, mimeType: 'application/json'),
+        subject ?? filename,
+        origin,
       );
       return null;
     } catch (e) {
       debugPrint('ExportService.shareJsonFile [$step]: $e');
       return '[$step] $e';
+    } finally {
+      // Best-effort cleanup of the plaintext copy, whether the share succeeded,
+      // was dismissed, or threw.
+      try {
+        if (file != null && file.existsSync()) await file.delete();
+      } catch (e) {
+        debugPrint('ExportService.shareJsonFile [cleanup]: $e');
+      }
     }
   }
 }

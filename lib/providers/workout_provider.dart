@@ -8,6 +8,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../services/workout_service.dart';
 import '../services/tts_service.dart';
 import '../services/session_storage_service.dart';
+import '../services/session_summary.dart';
 import '../services/health_profile_store.dart';
 import '../services/health_import_service.dart';
 import '../services/iap_service.dart';
@@ -77,6 +78,12 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// DOB). Zones, effort %, danger threshold all silently no-op without it —
   /// surfaced via SnackBar so the user knows to fix it.
   String? zonesWarning;
+
+  /// Set when native reports the announce audio is out of action mid-workout
+  /// (engine failed to start, or the Bluetooth route dropped and cues are
+  /// suppressed so heart rate isn't spoken through the iPhone speaker).
+  /// Monitoring continues — this is informational, surfaced via SnackBar.
+  String? audioWarning;
 
   /// Optional user-entered age. Used as a fallback when HealthKit DOB is
   /// unavailable. Setting this populates the same zone fields that HealthKit
@@ -378,11 +385,15 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
+  // The parameter is deliberately NOT named `state` (the overridden
+  // signature's name): that would shadow the provider's own MonitoringState
+  // field and silently read the wrong thing in any future edit here.
+  // ignore: avoid_renaming_method_parameters
+  void didChangeAppLifecycleState(AppLifecycleState lifecycleState) {
     // The idle AirPods poll is a Dart Timer.periodic, which suspends while the
     // app is backgrounded. Re-check immediately on resume so buds inserted while
     // we were away show up at once rather than after the next 3 s tick.
-    if (state == AppLifecycleState.resumed && _idlePollTimer != null) {
+    if (lifecycleState == AppLifecycleState.resumed && _idlePollTimer != null) {
       _pollAirPods();
     }
   }
@@ -1076,7 +1087,14 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> start() async {
+    // Re-entrancy guard: a second start while starting/running would leak the
+    // first run's stream subscriptions and ask native for a second
+    // HKWorkoutSession over the live one.
+    if (state == MonitoringState.starting || state == MonitoringState.running) {
+      return;
+    }
     state = MonitoringState.starting;
+    audioWarning = null;
     errorMessage = null;
     errorSteps = [];
     currentBpm = null;
@@ -1231,7 +1249,10 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
 
-    // Subscribe to HR and status streams
+    // Subscribe to HR and status streams. Cancel any stragglers from a prior
+    // run first — re-assigning without cancelling leaks the old subscription.
+    await _hrSub?.cancel();
+    await _statusSub?.cancel();
     _hrSub = _workout.heartRateStream.listen(_onHeartRate, onError: _onStreamError);
     _statusSub = _workout.statusStream.listen(_onStatus, onError: _onStreamError);
 
@@ -1263,6 +1284,10 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _onHeartRate(Map<String, dynamic> data) {
+    // A late event can slip in while stop()/error teardown awaits its first
+    // cancel — don't mutate history or fire announce triggers once the
+    // provider is no longer running.
+    if (_disposed || state != MonitoringState.running) return;
     final bpm = (data['bpm'] as num?)?.toDouble();
     final kcal = (data['kcal'] as num?)?.toDouble();
     final rr = (data['respiratoryRate'] as num?)?.toDouble();
@@ -1280,7 +1305,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (bpm == null || bpm <= 0) {
       // Altimeter-only payloads carry no BPM — still refresh the UI so the
       // elevation readout updates between heart-rate samples.
-      if (ascent != null) notifyListeners();
+      if (ascent != null) _safeNotify();
       return;
     }
     // Filter physiologically implausible samples — sensor glitches outside
@@ -1311,7 +1336,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     // Crash-recovery snapshot — every HR sample updates the file so the user
     // loses at most one sample's worth of data if the app is killed mid-workout.
     _saveInProgress();
-    notifyListeners();
+    _safeNotify();
 
     // Opening reading: speak it immediately, regardless of the delta toggle or
     // interval, so the workout starts with an actual BPM right after the spoken
@@ -1355,11 +1380,31 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     } else if (type == 'state' && value == 'backgrounded') {
       // Native (WorkoutManager.swift) speaks the confirmation directly because
       // the Dart isolate may already be paused at this point.
+    } else if (type == 'state' && value == 'audioRouteLost') {
+      // Native suppressed spoken cues because the Bluetooth route dropped —
+      // without suppression they'd play on the iPhone speaker. Not fatal.
+      audioWarning = 'AirPods audio route lost — announcements are paused '
+          'until they reconnect. Monitoring continues.';
+      _safeNotify();
+    } else if (type == 'state' && value == 'audioRouteRestored') {
+      // Bluetooth route is back; clearing the warning also re-arms the
+      // SnackBar dedupe so a SECOND loss in the same workout warns again.
+      audioWarning = null;
+      _safeNotify();
+    } else if (type == 'state' && value == 'audioUnavailable') {
+      // The native announce engine could not (re)start — announcements are off
+      // for the rest of the workout, but heart-rate logging continues.
+      audioWarning = 'Audio unavailable — announcements are off for this '
+          'workout. Monitoring continues.';
+      _safeNotify();
     } else if (type == 'state' && value == 'stopped') {
       // HealthKit ended the session from the native side (background kill,
       // iOS timeout, etc.). Mirror the same cleanup that stop() does, but
       // skip stopWorkout() — the session is already gone.
       if (state == MonitoringState.running) {
+        // Claim the transition first — symmetric with stop(), so a user tap
+        // landing during the persist await below can't run teardown twice.
+        state = MonitoringState.stopped;
         _cancelTimers();
         _hrSub?.cancel();
         _statusSub?.cancel();
@@ -1370,7 +1415,6 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
           _computeSummary();
           await _persistSession();
         }
-        state = MonitoringState.stopped;
         _startIdlePoll();
         notifyListeners();
       }
@@ -1414,66 +1458,64 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> stop() async {
+    // Claim the transition up front (no notify yet — the UI updates once at
+    // the end). While _persistSession awaits below, a native 'stopped' status
+    // event or a second stop() tap would otherwise also pass the
+    // `state == running` check and compute + persist the same session twice.
+    if (state != MonitoringState.running) return;
+    state = MonitoringState.stopped;
     _cancelTimers();
+    // Cancel the streams before persisting so a late HR/status event can't
+    // append to bpmHistory (or re-enter teardown) mid-save.
+    await _hrSub?.cancel();
+    await _statusSub?.cancel();
     // Compute summary while bpmHistory is still intact, then persist.
     if (bpmHistory.length >= 2 && _sessionStart != null) {
       sessionEnd = DateTime.now();
       _computeSummary();
       await _persistSession();
     }
-    await _hrSub?.cancel();
-    await _statusSub?.cancel();
-    await _workout.stopWorkout();
-    await _tts.stop();
+    // stop() is single-shot (the state guard above), so the teardown tail must
+    // survive a platform-channel throw — otherwise the wakelock stays on and
+    // the UI never leaves the running screen with no retry path.
+    try {
+      await _workout.stopWorkout();
+    } catch (e) {
+      debugPrint('WorkoutProvider.stop: native stopWorkout failed: $e');
+    }
+    try {
+      await _tts.stop();
+    } catch (e) {
+      debugPrint('WorkoutProvider.stop: tts stop failed: $e');
+    }
     WakelockPlus.disable();
-    state = MonitoringState.stopped;
     _startIdlePoll();
     notifyListeners();
   }
 
   void _computeSummary() {
-    final bpms = bpmHistory.map((s) => s.bpm).toList();
-    summaryMaxBpm = bpms.reduce(max);
-    summaryMinBpm = bpms.reduce(min);
+    // All the timeline math lives in summarizeHrTimeline — shared with crash
+    // recovery and the Apple Health import so the three can't drift apart.
+    final summary = summarizeHrTimeline(
+      bpmHistory.map((s) => [s.secondsFromStart, s.bpm]).toList(),
+      zone1End: zone1End?.toDouble(),
+      zone2Start: zone2Start?.toDouble(),
+      zone3Start: zone3Start?.toDouble(),
+      zone4Start: zone4Start?.toDouble(),
+      maxHeartRate: maxHeartRate,
+    );
+    summaryMaxBpm = summary.maxBpm;
+    summaryMinBpm = summary.minBpm;
     summaryDuration = sessionEnd!.difference(_sessionStart!);
-
-    // Time-weighted average BPM and histogram (trapezoidal)
-    double totalSecs = 0, weightedSum = 0;
-    final hist = <int, double>{};
-    for (int i = 1; i < bpmHistory.length; i++) {
-      final dt = bpmHistory[i].secondsFromStart - bpmHistory[i - 1].secondsFromStart;
-      final avg = (bpmHistory[i].bpm + bpmHistory[i - 1].bpm) / 2;
-      totalSecs += dt;
-      weightedSum += avg * dt;
-      final bin = avg.round();
-      hist[bin] = (hist[bin] ?? 0) + dt;
-    }
-    summaryAvgBpm = totalSecs > 0 ? weightedSum / totalSecs : bpms.first;
-    summaryHistogram = hist;
-
-    if (maxHeartRate != null && maxHeartRate! > 0 && summaryAvgBpm != null) {
-      summaryEffortPct = (summaryAvgBpm! / maxHeartRate!) * 100;
-    }
-
-    // Compute zone-time distribution once — _ZoneTimeLine reads this instead
-    // of iterating bpmHistory on every build (O(1) vs O(n)).
-    if (zone1End != null && zone2Start != null && zone3Start != null &&
-        zone4Start != null && zone5Start != null) {
-      const brady = kBradycardiaThreshold;
-      final z1 = zone1End!.toDouble();
-      final z2 = zone2Start!.toDouble();
-      final z3 = zone3Start!.toDouble();
-      final z4 = zone4Start!.toDouble();
-      final secs = List.filled(6, 0.0);
-      for (int i = 1; i < bpmHistory.length; i++) {
-        final dt  = bpmHistory[i].secondsFromStart - bpmHistory[i - 1].secondsFromStart;
-        final bpm = (bpmHistory[i].bpm + bpmHistory[i - 1].bpm) / 2;
-        final idx = bpm < brady ? 0 : bpm < z1 ? 1 : bpm < z2 ? 2
-                  : bpm < z3   ? 3 : bpm < z4   ? 4 : 5;
-        secs[idx] += dt;
-      }
-      summaryZoneSecs = List.unmodifiable(secs);
-    }
+    summaryAvgBpm = summary.avgBpm;
+    summaryHistogram = summary.histogram;
+    summaryEffortPct = summary.effortPct;
+    // Zone-time distribution computed once — _ZoneTimeLine reads this instead
+    // of iterating bpmHistory on every build (O(1) vs O(n)). Null (line hidden)
+    // unless the full zone set was configured.
+    summaryZoneSecs = (summary.zoneSecs != null && zone5Start != null)
+        ? List.unmodifiable(summary.zoneSecs!)
+        : null;
   }
 
   /// Builds the JSON map for the current session. Used by both the final
@@ -1552,52 +1594,30 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     final samples = timeline.map((e) {
       final list = e as List;
-      return BpmSample((list[0] as num).toDouble(), (list[1] as num).toDouble());
+      return [(list[0] as num).toDouble(), (list[1] as num).toDouble()];
     }).toList();
-    final bpms = samples.map((s) => s.bpm).toList();
 
-    // Time-weighted avg and histogram (trapezoidal — same as _computeSummary).
-    double totalSecs = 0, weightedSum = 0;
-    final hist = <int, double>{};
-    for (int i = 1; i < samples.length; i++) {
-      final dt = samples[i].secondsFromStart - samples[i - 1].secondsFromStart;
-      final avg = (samples[i].bpm + samples[i - 1].bpm) / 2;
-      totalSecs += dt;
-      weightedSum += avg * dt;
-      final bin = avg.round();
-      hist[bin] = (hist[bin] ?? 0) + dt;
-    }
-    final avgBpm = totalSecs > 0 ? weightedSum / totalSecs : bpms.first;
-
-    // Zone-time distribution from the snapshot's zone config.
-    final z1 = (snap['zone1End'] as num?)?.toDouble();
-    final z2 = (snap['zone2Start'] as num?)?.toDouble();
-    final z3 = (snap['zone3Start'] as num?)?.toDouble();
-    final z4 = (snap['zone4Start'] as num?)?.toDouble();
-    final zoneSecs = List<double>.filled(6, 0.0);
-    if (z1 != null && z2 != null && z3 != null && z4 != null) {
-      const brady = kBradycardiaThreshold;
-      for (int i = 1; i < samples.length; i++) {
-        final dt = samples[i].secondsFromStart - samples[i - 1].secondsFromStart;
-        final b = (samples[i].bpm + samples[i - 1].bpm) / 2;
-        final idx = b < brady ? 0 : b < z1 ? 1 : b < z2 ? 2 : b < z3 ? 3 : b < z4 ? 4 : 5;
-        zoneSecs[idx] += dt;
-      }
-    }
-
-    final maxHr = (snap['maxHeartRate'] as num?)?.toInt();
-    final effort = (maxHr != null && maxHr > 0) ? (avgBpm / maxHr) * 100 : null;
+    // Same shared summarizer as the live stop path, fed the snapshot's own
+    // zone config so a recovered session matches what live would have saved.
+    final summary = summarizeHrTimeline(
+      samples,
+      zone1End: (snap['zone1End'] as num?)?.toDouble(),
+      zone2Start: (snap['zone2Start'] as num?)?.toDouble(),
+      zone3Start: (snap['zone3Start'] as num?)?.toDouble(),
+      zone4Start: (snap['zone4Start'] as num?)?.toDouble(),
+      maxHeartRate: (snap['maxHeartRate'] as num?)?.toInt(),
+    );
     final start = DateTime.parse(snap['startTime'] as String);
     final end   = DateTime.parse(snap['endTime'] as String);
 
     final finalSession = Map<String, dynamic>.from(snap)
       ..['durationSeconds'] = end.difference(start).inSeconds
-      ..['maxBpm']    = bpms.reduce(max)
-      ..['minBpm']    = bpms.reduce(min)
-      ..['avgBpm']    = avgBpm
-      ..['effortPct'] = effort
-      ..['zoneSecs']  = zoneSecs
-      ..['histogram'] = hist.map((k, v) => MapEntry('$k', v));
+      ..['maxBpm']    = summary.maxBpm
+      ..['minBpm']    = summary.minBpm
+      ..['avgBpm']    = summary.avgBpm
+      ..['effortPct'] = summary.effortPct
+      ..['zoneSecs']  = summary.zoneSecs ?? List<double>.filled(6, 0.0)
+      ..['histogram'] = summary.histogram.map((k, v) => MapEntry('$k', v));
 
     final ok = await SessionStorageService.save(finalSession);
     if (ok) {

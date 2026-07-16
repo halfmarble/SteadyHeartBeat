@@ -375,12 +375,12 @@ void main() {
         ..deltaThreshold = 10;
 
       p.simulateHeartRateForTest(70);
-      // Delta would fire (baseline null) BUT the timer check guards on running state.
-      // The delta trigger itself fires regardless of state — the guard is only
-      // on the interval timer. This matches production: delta fires to let the
-      // user know their HR even before/after a session.
-      // Just verify we don't crash.
-      expect(tts.spoken, isNotEmpty); // delta fires even outside running state
+      // _onHeartRate guards on the running state: outside a session (idle,
+      // stopped, or mid-teardown) a sample must not mutate history or fire
+      // the announce triggers — a late event slipping in while stop() awaits
+      // used to be able to do both.
+      expect(tts.spoken, isEmpty);
+      expect(p.bpmHistory, isEmpty);
     });
 
     test('interval timer does not announce when state is stopped', () async {

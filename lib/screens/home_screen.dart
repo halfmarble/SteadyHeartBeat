@@ -144,6 +144,7 @@ class _ErrorDialogListenerState extends State<_ErrorDialogListener> {
   String? _lastShownError;
   String? _lastShownSaveError;
   String? _lastShownZonesWarning;
+  String? _lastShownAudioWarning;
 
   @override
   void didChangeDependencies() {
@@ -223,6 +224,31 @@ class _ErrorDialogListenerState extends State<_ErrorDialogListener> {
       });
     } else if (p.zonesWarning == null) {
       _lastShownZonesWarning = null;
+    }
+
+    // Announce audio out of action mid-workout (engine failure, or Bluetooth
+    // route lost so cues are held back from the iPhone speaker) → soft
+    // warning; monitoring itself continues.
+    if (p.audioWarning != null && p.audioWarning != _lastShownAudioWarning) {
+      _lastShownAudioWarning = p.audioWarning;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(
+            content: Text(p.audioWarning!),
+            duration: const Duration(seconds: 12),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: kWarningSnackBg,
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {},
+            ),
+          ));
+      });
+    } else if (p.audioWarning == null) {
+      _lastShownAudioWarning = null;
     }
   }
 
@@ -1422,12 +1448,21 @@ class _SensorSearchIndicatorState extends State<_SensorSearchIndicator>
     await Future.delayed(const Duration(milliseconds: 800));
     try {
       final bytes = await WorkoutService().getAirPodsIcon(pointSize: 120);
+      if (bytes == null) {
+        // Transient failure (e.g. a race right at startup): un-latch so a
+        // later instance retries — latching here used to leave the AirPods
+        // artwork missing for the rest of the app session.
+        _fetchAttempted = false;
+        return;
+      }
       _cachedBytes = bytes;
-      if (mounted && bytes != null) {
+      if (mounted) {
         setState(() => _iconBytes = bytes);
         await _decodeUiImage(bytes);
       }
-    } catch (_) {}
+    } catch (_) {
+      _fetchAttempted = false;
+    }
   }
 
   Future<void> _decodeUiImage(Uint8List bytes) async {
@@ -1443,7 +1478,12 @@ class _SensorSearchIndicatorState extends State<_SensorSearchIndicator>
   void _startNoise() {
     if (_noiseTimer != null) return;
     _noiseTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
-      if (mounted) setState(() => _noiseSeed++);
+      // TickerMode is off while another route fully covers this screen —
+      // skip the repaint there so the idle shimmer doesn't keep burning
+      // CPU/battery at 12.5 fps underneath Preferences or a session detail.
+      if (mounted && TickerMode.getValuesNotifier(context).value.enabled) {
+        setState(() => _noiseSeed++);
+      }
     });
   }
 
@@ -2457,6 +2497,8 @@ class _HistogramPainter extends CustomPainter {
     final bpmMax = keys.last;
     final range  = (bpmMax - bpmMin + 1).toDouble();
     final secsMax = histogram.values.reduce(max);
+    // All-zero bins would make h below 0/0 = NaN and silently draw nothing.
+    if (secsMax <= 0) return;
     final barW   = size.width / range;
 
     for (final e in histogram.entries) {

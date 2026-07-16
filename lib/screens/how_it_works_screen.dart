@@ -6,10 +6,11 @@ import '../widgets/metric_explainer.dart';
 /// "How it works" — the Glass Box science screen, reached from the ⓘ in the home
 /// top bar. Explains, with citations, every derived number the app shows: the
 /// age-estimated maximum heart rate that everything hangs off, the zones, the
-/// danger threshold, effort, the calorie figure, and elevation. Copy stays
-/// inside the FDA 2019 General Wellness framing (no "treat"/"cure"/"diagnose"/
-/// "prevent"). Sources are the same [Citation]s the in-chip explainers cite,
-/// rendered with [SourcesBlock].
+/// ceiling alert, effort, the calorie figure, and elevation. Copy stays
+/// inside the FDA General Wellness framing (revised January 2026 — no "treat"/
+/// "cure"/"diagnose"/"prevent", no disease names, no diagnostic thresholds).
+/// Sources are the same [Citation]s the in-chip explainers cite, rendered with
+/// [SourcesBlock].
 class HowItWorksScreen extends StatelessWidget {
   const HowItWorksScreen({super.key});
 
@@ -73,9 +74,9 @@ class HowItWorksScreen extends StatelessWidget {
           ),
           SizedBox(height: 28),
           _ScienceSection(
-            title: 'THE DANGER THRESHOLD',
+            title: 'THE CEILING ALERT',
             paragraphs: [
-              'The danger line sits at the bottom of Zone 5 — 90% of your '
+              'The ceiling line sits at the bottom of Zone 5 — 90% of your '
                   'estimated maximum — the top of what exercise science calls '
                   'vigorous intensity. When your heart rate crosses it, the app '
                   'can alert you, including in the background.',
@@ -188,7 +189,7 @@ class HowItWorksScreen extends StatelessWidget {
           SizedBox(height: 24),
           Text(
             'SteadyHeartBeat is a general-wellness and fitness tool under the '
-            'FDA’s 2019 General Wellness policy. The numbers here are for everyday '
+            'FDA’s General Wellness policy. The numbers here are for everyday '
             'fitness insight, not medical measurements.',
             style: TextStyle(color: kTextDim, fontSize: kFontCaption, height: 1.4),
           ),

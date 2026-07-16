@@ -138,6 +138,10 @@ class PopDist {
 /// Fits a (log-)normal from two percentile anchors `p→v` (p in 0–1).
 PopDist _fitDist(double p1, double v1, double p2, double v2, String unit,
     {bool logNormal = false}) {
+  // Two anchors sharing a value would fit sigma = 0 and every later
+  // percentileOf would divide by zero. Unreachable with the current
+  // monotonic band tables — the assert pins that invariant for new tables.
+  assert(v1 != v2, 'percentile anchors must differ (got $v1 for both)');
   final z1 = _probit(p1), z2 = _probit(p2);
   final a1 = logNormal ? math.log(v1) : v1;
   final a2 = logNormal ? math.log(v2) : v2;
@@ -210,8 +214,11 @@ class PersonalDist {
   final String unit;
 
   int get count => _sorted.length;
-  double get min => _sorted.first;
-  double get max => _sorted.last;
+  // Empty-safe (0, matching percentileOf's empty convention): callers gate on
+  // kMinPersonalReadings today, but `.first`/`.last` on an empty list throws —
+  // a landmine for any future caller that forgets the gate.
+  double get min => _sorted.isEmpty ? 0 : _sorted.first;
+  double get max => _sorted.isEmpty ? 0 : _sorted.last;
 
   /// Empirical percentile (0–100) of [v]: values strictly below plus half of
   /// the ties (mid-rank), so a reading equal to the whole history reads ~50th.

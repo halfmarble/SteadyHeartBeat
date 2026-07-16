@@ -1,4 +1,4 @@
-import '../constants.dart';
+import 'session_summary.dart';
 
 /// One workout as listed from Apple Health for the import picker.
 class HealthWorkout {
@@ -39,10 +39,10 @@ class HealthWorkout {
 /// for session files lost from local storage (every finished workout the app
 /// saves to Apple Health carries the HR samples needed to reconstruct one).
 ///
-/// Glass Box: the summary math here (time-weighted trapezoidal average,
-/// histogram, zone seconds) mirrors WorkoutProvider._computeSummary /
-/// _recoverOrphanSession exactly, so an imported session is indistinguishable
-/// from one recorded live.
+/// Glass Box: the summary math (time-weighted trapezoidal average, histogram,
+/// zone seconds) is the shared [summarizeHrTimeline] — the same code the live
+/// stop path and crash recovery use — so an imported session is
+/// indistinguishable from one recorded live.
 class HealthImportService {
   /// Builds the session JSON map for [workout] from its [hrTimeline]
   /// ([secondsFromStart, bpm] pairs, ascending). Returns null when the
@@ -64,49 +64,16 @@ class HealthImportService {
   }) {
     if (hrTimeline.length < 2) return null;
 
-    final bpms = hrTimeline.map((p) => p[1]).toList();
-
-    // Time-weighted average BPM and histogram (trapezoidal — matches
-    // WorkoutProvider._computeSummary).
-    double totalSecs = 0, weightedSum = 0;
-    final hist = <int, double>{};
-    for (int i = 1; i < hrTimeline.length; i++) {
-      final dt = hrTimeline[i][0] - hrTimeline[i - 1][0];
-      final avg = (hrTimeline[i][1] + hrTimeline[i - 1][1]) / 2;
-      totalSecs += dt;
-      weightedSum += avg * dt;
-      final bin = avg.round();
-      hist[bin] = (hist[bin] ?? 0) + dt;
-    }
-    final avgBpm = totalSecs > 0 ? weightedSum / totalSecs : bpms.first;
-
-    // Zone-time distribution from the caller's zone config.
-    final zoneSecs = List<double>.filled(6, 0.0);
-    if (zone1End != null &&
-        zone2Start != null &&
-        zone3Start != null &&
-        zone4Start != null) {
-      final z1 = zone1End.toDouble();
-      final z2 = zone2Start.toDouble();
-      final z3 = zone3Start.toDouble();
-      final z4 = zone4Start.toDouble();
-      const brady = kBradycardiaThreshold;
-      for (int i = 1; i < hrTimeline.length; i++) {
-        final dt = hrTimeline[i][0] - hrTimeline[i - 1][0];
-        final b = (hrTimeline[i][1] + hrTimeline[i - 1][1]) / 2;
-        final idx = b < brady ? 0 : b < z1 ? 1 : b < z2 ? 2 : b < z3 ? 3 : b < z4 ? 4 : 5;
-        zoneSecs[idx] += dt;
-      }
-    }
-
-    double maxBpm = bpms.first, minBpm = bpms.first;
-    for (final b in bpms) {
-      if (b > maxBpm) maxBpm = b;
-      if (b < minBpm) minBpm = b;
-    }
-    final effort = (maxHeartRate != null && maxHeartRate > 0)
-        ? (avgBpm / maxHeartRate) * 100
-        : null;
+    // Same shared summarizer as the live stop path and crash recovery, so an
+    // imported session is indistinguishable from one recorded live.
+    final summary = summarizeHrTimeline(
+      hrTimeline,
+      zone1End: zone1End?.toDouble(),
+      zone2Start: zone2Start?.toDouble(),
+      zone3Start: zone3Start?.toDouble(),
+      zone4Start: zone4Start?.toDouble(),
+      maxHeartRate: maxHeartRate,
+    );
 
     return {
       'id': workout.end.toIso8601String(),
@@ -115,17 +82,17 @@ class HealthImportService {
       'endTime': workout.end.toIso8601String(),
       'durationSeconds': workout.end.difference(workout.start).inSeconds,
       'deviceName': workout.source,
-      'maxBpm': maxBpm,
-      'avgBpm': avgBpm,
-      'minBpm': minBpm,
+      'maxBpm': summary.maxBpm,
+      'avgBpm': summary.avgBpm,
+      'minBpm': summary.minBpm,
       'kcal': workout.kcal,
       'respiratoryRate': null,
       'steps': null,
       'distanceMeters': workout.distanceMeters,
       'floorsClimbed': null,
-      'effortPct': effort,
-      'zoneSecs': zoneSecs,
-      'histogram': hist.map((k, v) => MapEntry('$k', v)),
+      'effortPct': summary.effortPct,
+      'zoneSecs': summary.zoneSecs ?? List<double>.filled(6, 0.0),
+      'histogram': summary.histogram.map((k, v) => MapEntry('$k', v)),
       'hrTimeline': hrTimeline,
       'zone1End': zone1End,
       'zone2Start': zone2Start,

@@ -430,7 +430,7 @@ void main() {
       final provider =
           WorkoutProvider(workout: _FakeWorkoutService(), tts: _FakeTtsService());
       await provider.initialized;
-      // Pre-existing prefs survive the upgrade. (The SHB+ module's own
+      // Pre-existing prefs survive the upgrade. (The Plus module's own
       // missing-key defaults are covered in test/plus/plus_gate_test.dart.)
       expect(provider.boxingRoundsEnabled, true);
       expect(provider.roundSecs, 120);

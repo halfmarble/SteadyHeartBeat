@@ -166,7 +166,7 @@ class ZoneCoachingPanel extends StatelessWidget {
                   hasZones
                       ? 'Announcements name your zone (“142, zone 4”). Set a target '
                           'zone to also hear “push” or “ease off”.'
-                      : 'Add your age in the Danger Zone section (or your date of '
+                      : 'Add your age under You & your body (or your date of '
                           'birth in Apple Health) to enable heart-rate zones.',
                   style: const TextStyle(
                       color: kTextSubtle, fontSize: kFontBase, height: 1.4),

@@ -10,8 +10,37 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     private let healthStore = HKHealthStore()
     private var session: HKWorkoutSession?
     private var builder: HKLiveWorkoutBuilder?
+    // True from stopWorkout() until its async finalize clears the session — a
+    // second stop during teardown would otherwise double-end the session and
+    // double-finish the builder.
+    private var _stopping = false
     var heartRateEventSink: FlutterEventSink?
     var statusEventSink: FlutterEventSink?
+    // Status events raised while Flutter isn't subscribed yet. Used only for
+    // the audio warnings: the engine can fail INSIDE startWorkout, before the
+    // Dart side re-subscribes to the status stream — an unbuffered emit there
+    // lands on a nil sink and the warning is lost for good.
+    private var _pendingStatusEvents: [[String: Any]] = []
+
+    /// Sets (or clears) the status sink and flushes any buffered events to a
+    /// fresh sink. AppDelegate's StatusStreamHandler calls this instead of
+    /// assigning `statusEventSink` directly.
+    func attachStatusSink(_ sink: FlutterEventSink?) {
+        statusEventSink = sink
+        guard let sink, !_pendingStatusEvents.isEmpty else { return }
+        let pending = _pendingStatusEvents
+        _pendingStatusEvents = []
+        for event in pending { sink(event) }
+    }
+
+    /// Emit-or-buffer for status events that must not be lost to a nil sink.
+    private func _emitStatus(_ payload: [String: Any]) {
+        if let sink = statusEventSink {
+            sink(payload)
+        } else {
+            _pendingStatusEvents.append(payload)
+        }
+    }
 
     // TTS synthesizer — used ONLY to RENDER speech to PCM via write(_:toBufferCallback:),
     // never speak(). speak() renders in an out-of-process daemon (speechsynthesisd)
@@ -60,6 +89,11 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     // True from cue start until its last buffer finishes — the playback-side
     // "busy" flag that routes newly rendered cues into _cueQueue.
     private var _playing = false
+    // True while the workout's Bluetooth audio route is gone (AirPods dropped
+    // mid-workout). Spoken cues are suppressed while set — without this they
+    // fall back to the iPhone speaker and announce heart rate out loud in
+    // public. Cleared when a Bluetooth device (re)connects or a workout starts.
+    private var _btRouteLost = false
     // Fixed format for the silent keep-alive buffer, decoupled from the TTS render
     // format so the engine can start immediately at workout start (the mixer
     // converts the TTS buffers when they arrive).
@@ -214,29 +248,31 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     //             per-utterance setActive() (a silent try?) was denied — the
     //             user stopped hearing announcements while logging continued.
     @objc private func _audioSessionInterruption(_ note: Notification) {
-        guard session != nil,
-              let userInfo = note.userInfo,
+        // Delivered on a system thread. The announce pipeline (queues, players,
+        // engine) is main-owned, so extract the payload here and mutate on main.
+        guard let userInfo = note.userInfo,
               let typeRaw = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
               let type = AVAudioSession.InterruptionType(rawValue: typeRaw)
         else { return }
+        // shouldResume is informational here. When iOS already wants us to
+        // resume, one attempt is enough; otherwise (the common post-call
+        // case) we retry to ride out call-audio teardown still in flight.
+        var shouldResume = false
+        if let optionsRaw = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+            shouldResume = AVAudioSession.InterruptionOptions(rawValue: optionsRaw)
+                .contains(.shouldResume)
+        }
 
-        switch type {
-        case .began:
-            _flushSpeech()
-
-        case .ended:
-            // shouldResume is informational here. When iOS already wants us to
-            // resume, one attempt is enough; otherwise (the common post-call
-            // case) we retry to ride out call-audio teardown still in flight.
-            var shouldResume = false
-            if let optionsRaw = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
-                shouldResume = AVAudioSession.InterruptionOptions(rawValue: optionsRaw)
-                    .contains(.shouldResume)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.session != nil else { return }
+            switch type {
+            case .began:
+                self._flushSpeech()
+            case .ended:
+                self._reactivateAfterInterruption(retriesRemaining: shouldResume ? 1 : 3)
+            @unknown default:
+                break
             }
-            _reactivateAfterInterruption(retriesRemaining: shouldResume ? 1 : 3)
-
-        @unknown default:
-            break
         }
     }
 
@@ -256,26 +292,74 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
             _rebuildEngine()
         } catch {
             NSLog("SHB audio session reactivation failed (retries left \(retriesRemaining)): \(error)")
-            guard retriesRemaining > 0 else { return }
+            guard retriesRemaining > 0 else {
+                // Out of retries: announcements are dead for the rest of the
+                // workout. Logging continues fine, so tell Flutter instead of
+                // failing silently — the exact "user hears nothing and doesn't
+                // know why" failure this handler exists to prevent.
+                _emitStatus(["type": "state", "value": "audioUnavailable"])
+                return
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 self?._reactivateAfterInterruption(retriesRemaining: retriesRemaining - 1)
             }
         }
     }
 
-    // Only react to AirPods reconnecting — NOT to app switches (which also
+    // React to devices joining or leaving — NOT to app switches (which also
     // fire this notification). Activating the session on every app switch is
-    // what kills music playback.
+    // what kills music playback. Delivered on a system thread; all handling
+    // hops to main (the pipeline's queue).
     @objc private func _audioSessionRouteChange(_ note: Notification) {
-        guard session != nil,
-              let userInfo = note.userInfo,
+        guard let userInfo = note.userInfo,
               let reasonRaw = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
-              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonRaw),
-              reason == .newDeviceAvailable
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonRaw)
         else { return }
-        // AirPods reconnected mid-workout — reconfigure and rebuild the engine so
-        // the announce graph re-routes to them.
-        _startAudioEngine()
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.session != nil else { return }
+            switch reason {
+            case .newDeviceAvailable:
+                // Only a Bluetooth output (the class of route the buds occupy)
+                // clears the suppression — a wired dock / CarPlay / AirPlay
+                // device appearing must NOT cause heart-rate numbers to speak
+                // through shared speakers.
+                let btTypes: Set<AVAudioSession.Port> =
+                    [.bluetoothA2DP, .bluetoothHFP, .bluetoothLE]
+                let hasBt = AVAudioSession.sharedInstance().currentRoute.outputs
+                    .contains { btTypes.contains($0.portType) }
+                if hasBt {
+                    let wasLost = self._btRouteLost
+                    self._btRouteLost = false
+                    self._startAudioEngine()
+                    if wasLost {
+                        // Lets Dart clear the route-lost warning — and re-arms
+                        // it for a second loss in the same workout (the
+                        // SnackBar dedupes on the message string).
+                        self._emitStatus(["type": "state", "value": "audioRouteRestored"])
+                    }
+                } else if !self._btRouteLost {
+                    // Non-BT device while the route is healthy: preserve the
+                    // old rebuild-on-new-device behavior.
+                    self._startAudioEngine()
+                }
+            case .oldDeviceUnavailable:
+                // A device left. If no Bluetooth output remains, the system has
+                // fallen back to the iPhone speaker — flush the pipeline and
+                // suppress cues (speak() gates on _btRouteLost) so heart-rate
+                // numbers aren't announced out loud in the room.
+                let btTypes: Set<AVAudioSession.Port> =
+                    [.bluetoothA2DP, .bluetoothHFP, .bluetoothLE]
+                let stillBt = AVAudioSession.sharedInstance().currentRoute.outputs
+                    .contains { btTypes.contains($0.portType) }
+                if !stillBt {
+                    self._btRouteLost = true
+                    self._flushSpeech()
+                    self._emitStatus(["type": "state", "value": "audioRouteLost"])
+                }
+            default:
+                break
+            }
+        }
     }
 
     static func configureAudioCategory() {
@@ -763,7 +847,9 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
                 _lastBpmAnnouncedAt = now
             }
         }
-        guard _engine.isRunning else { return }
+        // _btRouteLost: the Bluetooth route dropped mid-workout — a cue now
+        // would play on the iPhone speaker and announce heart rate out loud.
+        guard _engine.isRunning, !_btRouteLost else { return }
         let req = _SpeakRequest(text: text, withBell: withBell, isBpm: isBpmAnnounce)
         // One render at a time — the synthesizer can't overlap write() calls. A
         // request that lands mid-render queues instead of being dropped; a queued
@@ -895,6 +981,26 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         }
     }
 
+    // Convert one PCM buffer to the target format (sample rate / layout / sample
+    // type). Used by _startCue when a cue's segments rendered at different
+    // formats; returns nil if the conversion isn't possible (the segment is then
+    // dropped — one missing word beats a scheduleBuffer crash).
+    private static func _convert(_ buf: AVAudioPCMBuffer, to fmt: AVAudioFormat) -> AVAudioPCMBuffer? {
+        guard let converter = AVAudioConverter(from: buf.format, to: fmt) else { return nil }
+        let ratio = fmt.sampleRate / buf.format.sampleRate
+        let capacity = AVAudioFrameCount((Double(buf.frameLength) * ratio).rounded(.up)) + 1024
+        guard let out = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: capacity) else { return nil }
+        var fed = false
+        var convError: NSError?
+        converter.convert(to: out, error: &convError) { _, outStatus in
+            if fed { outStatus.pointee = .endOfStream; return nil }
+            fed = true
+            outStatus.pointee = .haveData
+            return buf
+        }
+        return (convError == nil && out.frameLength > 0) ? out : nil
+    }
+
     // A buffer of pure silence at the given format — used to space cue segments
     // apart (e.g. a beat of silence before the steering nudge). Format-agnostic.
     private func _makeSilence(format: AVAudioFormat, seconds: Double) -> AVAudioPCMBuffer? {
@@ -940,7 +1046,14 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     // cues, and never mid-cue.
     private func _startCue(_ cue: _Cue) {
         let fmt = cue.buffers[0].format
-        let toPlay = cue.buffers.filter { $0.format == fmt }
+        // A cue's segments (lead phrase, silence gap, amplified nudge) come from
+        // SEPARATE synthesizer renders, and write() doesn't guarantee the same
+        // format across utterances. The player is connected at one format per
+        // cue, so convert any stray segment instead of silently dropping it —
+        // dropping is how the "push"/"ease off" nudge used to vanish.
+        let toPlay = cue.buffers.compactMap { buf in
+            buf.format == fmt ? buf : Self._convert(buf, to: fmt)
+        }
         guard !toPlay.isEmpty else { _cueFinished(); return }
         _playing = true
         _announceGen += 1
@@ -988,6 +1101,11 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     // the in-flight cue. _rendering is deliberately left alone — a render still
     // in flight clears it on completion, and its result is dropped via the
     // _flushGen check in _playDucked.
+    //
+    // Always un-ducks: a flush can land mid-cue (interruption, engine config
+    // change, route loss), and the cue's own dataPlayedBack un-duck will never
+    // fire once the player is stopped — without this, Music stays ducked over
+    // silence until the next announce happens to run.
     private func _flushSpeech() {
         _flushGen += 1
         _announceGen += 1
@@ -995,11 +1113,11 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         _cueQueue.removeAll()
         _ttsPlayer.stop()
         _playing = false
+        _unduck()
     }
 
     func stopSpeaking() {
         _flushSpeech()
-        _unduck()
     }
 
     // MARK: - Periodic announce
@@ -1251,6 +1369,24 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     // MARK: - Workout session
 
     func startWorkout(type: String = "other", announceIntervalSeconds: Int = 15, completion: @escaping (Bool, String?) -> Void) {
+        // Re-entrancy guard: a second start while a session exists would
+        // overwrite `session`/`builder` and leak a live HKWorkoutSession that
+        // never ends.
+        guard session == nil else {
+            completion(false, "A workout is already active.")
+            return
+        }
+        if _stopping {
+            // The previous stop's async HealthKit finalize is still in flight
+            // (saving to Health can take over a second). A quick stop → start —
+            // common between interval sets — used to work by overwriting the
+            // old session; now that overwriting is guarded, wait the teardown
+            // out instead of failing the start.
+            _startAfterTeardown(attemptsLeft: 40, type: type,
+                                announceIntervalSeconds: announceIntervalSeconds,
+                                completion: completion)
+            return
+        }
         let config = HKWorkoutConfiguration()
         switch type {
         case "boxing":
@@ -1301,6 +1437,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         _latestBpm = 0
         _lastHrSampleAt = 0
         _lastBpmAnnouncedAt = 0
+        _btRouteLost = false   // AirPods presence was just verified by the start flow
         _startAltimeter()
         _startPedometer()
         // Apply the requested cadence before starting the timer so the first
@@ -1321,8 +1458,56 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
 
         let startDate = Date()
         session?.startActivity(with: startDate)
-        builder?.beginCollection(withStart: startDate) { success, error in
-            DispatchQueue.main.async { completion(success, error?.localizedDescription) }
+        builder?.beginCollection(withStart: startDate) { [weak self] success, error in
+            DispatchQueue.main.async {
+                if !success, let self = self {
+                    // Partial start: tear the half-built session down so the
+                    // next start doesn't hit the re-entrancy guard forever (and
+                    // the failed session/builder don't leak). Mirrors
+                    // stopWorkout's finalize, including releasing the audio
+                    // session so other apps get their resume signal — but skips
+                    // discardWorkout: collection never began, and the builder
+                    // is released with the reference. No workout was written.
+                    self._stopAnnounceTimer()
+                    self._stopRoundTimer()
+                    self._stopAudioEngine()
+                    self._stopAltimeter()
+                    self._stopPedometer()
+                    self.session?.end()
+                    self.session = nil
+                    self.builder = nil
+                    try? AVAudioSession.sharedInstance().setActive(
+                        false, options: .notifyOthersOnDeactivation)
+                }
+                completion(success, error?.localizedDescription)
+            }
+        }
+    }
+
+    // Polls (main queue, 0.25 s) until the previous stop's finalize clears
+    // `_stopping`, then starts; gives up after ~10 s. If another start won the
+    // race meanwhile, reports "already active" like the plain guard.
+    private func _startAfterTeardown(attemptsLeft: Int, type: String,
+                                     announceIntervalSeconds: Int,
+                                     completion: @escaping (Bool, String?) -> Void) {
+        if !_stopping {
+            if session == nil {
+                startWorkout(type: type,
+                             announceIntervalSeconds: announceIntervalSeconds,
+                             completion: completion)
+            } else {
+                completion(false, "A workout is already active.")
+            }
+            return
+        }
+        guard attemptsLeft > 0 else {
+            completion(false, "The previous workout is still finishing — try again in a moment.")
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            self?._startAfterTeardown(attemptsLeft: attemptsLeft - 1, type: type,
+                                      announceIntervalSeconds: announceIntervalSeconds,
+                                      completion: completion)
         }
     }
 
@@ -1346,6 +1531,11 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     }
 
     func stopWorkout() {
+        // Idempotency: a second stop (Dart race between stop() and the native
+        // 'stopped' status event) would end an already-ended session and
+        // double-finish the builder.
+        guard session != nil, !_stopping else { return }
+        _stopping = true
         _stopAnnounceTimer()
         _stopRoundTimer()
         _stopAudioEngine()
@@ -1355,19 +1545,26 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         _lastHrSampleAt = 0
         _lastBpmAnnouncedAt = 0
         session?.end()
-        builder?.endCollection(withEnd: Date()) { [weak self] _, _ in
+        builder?.endCollection(withEnd: Date()) { [weak self] _, error in
             guard let self = self else { return }
+            if let error { NSLog("SHB endCollection failed: \(error)") }
             let finalize: () -> Void = { [weak self] in
                 DispatchQueue.main.async {
                     self?.builder = nil
                     self?.session = nil
+                    self?._stopping = false
                     try? AVAudioSession.sharedInstance().setActive(
                         false, options: .notifyOthersOnDeactivation
                     )
                 }
             }
             if self._saveToHealth {
-                self.builder?.finishWorkout { _, _ in finalize() }
+                self.builder?.finishWorkout { _, error in
+                    if let error {
+                        NSLog("SHB finishWorkout failed — workout not saved to Health: \(error)")
+                    }
+                    finalize()
+                }
             } else {
                 // Discard so nothing is written to HealthKit (and nothing syncs
                 // out via iCloud Health). Any heart-rate samples the system
@@ -1409,10 +1606,22 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         _engine.connect(_ttsPlayer, to: _engine.mainMixerNode, format: _ttsConnectedFormat ?? kf)
         if !_engine.isRunning {
             do { try _engine.start() }
-            catch { return }
+            catch {
+                // The workout keeps logging fine but every cue will be silently
+                // guarded out by speak()'s isRunning check — tell Flutter so the
+                // user isn't left wondering why announcements stopped. Buffered:
+                // at workout start this fires before Flutter has re-subscribed.
+                NSLog("SHB audio engine start failed: \(error)")
+                _emitStatus(["type": "state", "value": "audioUnavailable"])
+                return
+            }
         }
-        if !_keepAlivePlayer.isPlaying,
-           let silence = AVAudioPCMBuffer(pcmFormat: kf, frameCapacity: 4096) {
+        // Restart the silent keep-alive loop deterministically. After an engine
+        // configuration change isPlaying can report stale state; a keep-alive
+        // that silently fails to resume lets mediaserverd drop the tap and the
+        // next cue plays into nothing.
+        _keepAlivePlayer.stop()
+        if let silence = AVAudioPCMBuffer(pcmFormat: kf, frameCapacity: 4096) {
             silence.frameLength = 4096   // zero-filled = silence
             _keepAlivePlayer.scheduleBuffer(silence, at: nil, options: .loops, completionHandler: nil)
             _keepAlivePlayer.play()
@@ -1427,13 +1636,17 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     }
 
     // A route/format change (e.g. AirPods reconnect) tears down the running engine
-    // — rebuild it so the next cue has a live graph.
+    // — rebuild it so the next cue has a live graph. AVAudioEngineConfigurationChange
+    // is documented to arrive on a background thread; the pipeline is main-owned,
+    // so hop before touching it.
     @objc private func _engineConfigChanged() {
-        guard session != nil else { return }
-        // The config change killed any scheduled buffers; clear the pipeline so
-        // a half-played cue's bookkeeping can't wedge the queue.
-        _flushSpeech()
-        _rebuildEngine()
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.session != nil else { return }
+            // The config change killed any scheduled buffers; clear the pipeline
+            // so a half-played cue's bookkeeping can't wedge the queue.
+            self._flushSpeech()
+            self._rebuildEngine()
+        }
     }
 
     // MARK: - Elevation (barometric ascent)
@@ -2103,7 +2316,13 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     // MARK: - AirPods detection via audio route
 
     func checkAirPodsInfo() -> [String: Any] {
-        try? AVAudioSession.sharedInstance().setActive(true)
+        // Idle probe: activating the session makes currentRoute report accurately.
+        // During a live workout the session is already active and held by the
+        // announce engine — re-activating from a status query would fight the
+        // engine's category/duck state, so skip it.
+        if self.session == nil {
+            try? AVAudioSession.sharedInstance().setActive(true)
+        }
         let session = AVAudioSession.sharedInstance()
         let btTypes: Set<AVAudioSession.Port> = [.bluetoothA2DP, .bluetoothHFP, .bluetoothLE]
 
@@ -2205,7 +2424,15 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         DispatchQueue.main.async {
             switch toState {
             case .running:  self.statusEventSink?(["type": "state", "value": "running"])
-            case .ended:    self.statusEventSink?(["type": "state", "value": "stopped"])
+            case .ended:
+                self.statusEventSink?(["type": "state", "value": "stopped"])
+                // System-initiated end (background kill, HealthKit timeout):
+                // nothing else tears this session down — Dart's 'stopped'
+                // handler deliberately skips stopWorkout(). Run the teardown
+                // here so `session` is cleared and the next start isn't
+                // rejected by the re-entrancy guard. stopWorkout() no-ops when
+                // this .ended came from a user stop (_stopping is set).
+                if !self._stopping { self.stopWorkout() }
             case .paused:   self.statusEventSink?(["type": "state", "value": "paused"])
             default: break
             }
@@ -2224,6 +2451,16 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         _ workoutBuilder: HKLiveWorkoutBuilder,
         didCollectDataOf collectedTypes: Set<HKSampleType>
     ) {
+        // HealthKit fires this on its own queue, but the announce state it
+        // updates (_latestBpm / _lastHrSampleAt) is read by the main-queue
+        // announce and round timers — hop to main so those never race. The
+        // builder's statistics are safe to read from any thread.
+        DispatchQueue.main.async { [weak self] in
+            self?._collectLiveStats(from: workoutBuilder)
+        }
+    }
+
+    private func _collectLiveStats(from workoutBuilder: HKLiveWorkoutBuilder) {
         var payload: [String: Any] = [:]
 
         if let stats = workoutBuilder.statistics(for: HKQuantityType(.heartRate)),
@@ -2281,7 +2518,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         }
 
         if !payload.isEmpty {
-            DispatchQueue.main.async { self.heartRateEventSink?(payload) }
+            heartRateEventSink?(payload)
         }
     }
 

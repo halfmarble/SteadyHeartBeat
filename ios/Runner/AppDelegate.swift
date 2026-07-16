@@ -286,11 +286,14 @@ class HeartRateStreamHandler: NSObject, FlutterStreamHandler {
 
 class StatusStreamHandler: NSObject, FlutterStreamHandler {
     func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
-        WorkoutManager.shared.statusEventSink = events
+        // attachStatusSink (not a bare assignment) so audio warnings raised
+        // before this subscription — e.g. an engine failure inside
+        // startWorkout — are flushed to the fresh sink instead of lost.
+        WorkoutManager.shared.attachStatusSink(events)
         return nil
     }
     func onCancel(withArguments arguments: Any?) -> FlutterError? {
-        WorkoutManager.shared.statusEventSink = nil
+        WorkoutManager.shared.attachStatusSink(nil)
         return nil
     }
 }

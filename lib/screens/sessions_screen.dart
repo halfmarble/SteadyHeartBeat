@@ -348,6 +348,7 @@ class _SessionChartViewState extends State<_SessionChartView>
   late final AnimationController _ctrl =
       AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
   Animation<double>? _anim;
+  CurvedAnimation? _curve;
   // The dialog's own route, watched so we can rotate back to portrait the moment
   // dismissal begins — see didChangeDependencies / _onRouteAnim.
   ModalRoute<dynamic>? _route;
@@ -388,6 +389,7 @@ class _SessionChartViewState extends State<_SessionChartView>
     // Safety net: ensure portrait is restored however the dialog left the tree
     // (e.g. an instantaneous removal that skips the reverse transition).
     SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
+    _curve?.dispose();
     _ctrl.dispose();
     super.dispose();
   }
@@ -408,13 +410,17 @@ class _SessionChartViewState extends State<_SessionChartView>
   }
 
   void _animateTo(double target, {bool dismiss = false}) {
-    _anim = Tween<double>(begin: _dy, end: target)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut))
+    // Detach the previous drive first — each call otherwise stacks one more
+    // CurvedAnimation + setState listener on _ctrl (one per partial drag),
+    // all firing every frame for the dialog's lifetime.
+    _curve?.dispose();
+    _curve = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _anim = Tween<double>(begin: _dy, end: target).animate(_curve!)
       ..addListener(() => setState(() => _dy = _anim!.value));
     _ctrl
       ..reset()
       ..forward().whenComplete(() {
-        if (dismiss) Navigator.of(context).maybePop();
+        if (dismiss && mounted) Navigator.of(context).maybePop();
       });
   }
 
@@ -475,7 +481,7 @@ class _SessionChartViewState extends State<_SessionChartView>
                             fontWeight: FontWeight.w600)),
                     if (durSecs != null) ...[
                       const SizedBox(width: kSpaceMD),
-                      Text('${fmtDuration(durSecs)} min',
+                      Text(fmtDuration(durSecs),
                           style: const TextStyle(
                               color: kTextSubtle,
                               fontSize: kFontLG,
@@ -589,7 +595,7 @@ class _SessionCard extends StatelessWidget {
                       fontWeight: FontWeight.w600)),
               if (durSecs > 0) ...[
                 const SizedBox(width: kSpaceMD),
-                Text('${fmtDuration(durSecs)} min',
+                Text(fmtDuration(durSecs),
                     style: const TextStyle(
                         color: kTextSubtle,
                         fontSize: kFontLG,
@@ -898,6 +904,8 @@ class _MiniHistPainter extends CustomPainter {
     final bpmMax  = keys.last;
     final range   = (bpmMax - bpmMin + 1).toDouble();
     final secsMax = histogram.values.reduce(max);
+    // All-zero bins would make h below 0/0 = NaN and silently draw nothing.
+    if (secsMax <= 0) return;
     final barW    = size.width / range;
 
     for (final e in histogram.entries) {

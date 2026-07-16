@@ -21,9 +21,10 @@ class Citation {
 /// values intentionally won't match other apps (different HRV measure + window).
 ///
 /// Keep the copy free of FDA-restricted language ("treat", "diagnose",
-/// "prevent", etc.) — these are general-wellness readings under the FDA 2019
-/// General Wellness Policy. Health figures carry [sources] so the medical
-/// information is cited in-app.
+/// "prevent", etc.), disease names, and diagnostic thresholds — these are
+/// general-wellness readings under the FDA General Wellness Policy for Low
+/// Risk Devices (revised January 2026, superseding the 2019 version). Health
+/// figures carry [sources] so the medical information is cited in-app.
 class MetricExplainer {
   final String title;
   final List<String> paragraphs;
@@ -159,7 +160,7 @@ const Map<String, MetricExplainer> kMetricExplainers = {
         'applied.',
     'Don’t confuse it with your estimated maximum heart rate, which we work out '
         'from your age (208 − 0.7 × age) and use to set your zones, your effort '
-        'percentage, and the danger threshold. Your measured peak can land above '
+        'percentage, and the ceiling alert. Your measured peak can land above '
         'or below that estimate — the estimate is a population average, and real '
         'maximums vary a lot from person to person.',
     'This is a general wellness reading, not a medical measurement.',
