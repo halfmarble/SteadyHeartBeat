@@ -6,7 +6,7 @@ iOS app that reads heart rate from AirPods with heart rate monitoring via Health
 
 Built by [Halfmarble LLC](https://halfmarble.com) as a proof of concept for ambient on-device biometric feedback, and as a prior art vehicle for the consumer-earbud-as-closed-loop-biometric-sensor pipeline. It was also a testbed for what it actually takes to keep user data protected and never released — to prove we can deliver on the privacy we promise.
 
-**Prior art published: 2026-06-04** — two public-domain defensive publications, in the Technical Disclosure Commons (Defensive Publications Series): **[PRIOR_ART_EARBUD_CLOSED_LOOP.md](PRIOR_ART_EARBUD_CLOSED_LOOP.md)** ([dpubs_series/10440](https://www.tdcommons.org/dpubs_series/10440)) and **[PRIOR_ART_REST_GATING.md](PRIOR_ART_REST_GATING.md)** ([dpubs_series/10441](https://www.tdcommons.org/dpubs_series/10441)).
+**Prior art published** — nine public-domain defensive publications in the Technical Disclosure Commons (Defensive Publications Series), so the methods stay freely practicable and cannot be patented by a third party. Full list in the *Prior art, code, and the app* section below.
 
 ---
 
@@ -97,7 +97,26 @@ All computation is on-device. No data leaves the iPhone — halfmarble never rec
 
 These are deliberately **independent** decisions. A change to one does not affect the others:
 
-1. **Prior art (public domain).** Selected *methods and techniques* are disclosed as dated, public-domain **defensive publications** — **[PRIOR_ART_EARBUD_CLOSED_LOOP.md](PRIOR_ART_EARBUD_CLOSED_LOOP.md)** and **[PRIOR_ART_REST_GATING.md](PRIOR_ART_REST_GATING.md)** (effective 2026-06-04; also published in the Technical Disclosure Commons at [dpubs_series/10440](https://www.tdcommons.org/dpubs_series/10440) and [dpubs_series/10441](https://www.tdcommons.org/dpubs_series/10441) for examiner-database findability). Publishing them as prior art keeps them freely practicable by anyone and prevents third parties from patenting them. That is their only purpose — they do **not** give away the source code or the application.
+1. **Prior art (public domain).** Selected *methods and techniques* are disclosed as dated,
+   public-domain **defensive publications**, deposited in the [Technical Disclosure
+   Commons](https://www.tdcommons.org) Defensive Publications Series so a patent examiner can
+   actually find them (a self-published README is not examiner-searched):
+
+   | Disclosure | TDCommons |
+   |---|---|
+   | Consumer earbud as a closed-loop biometric sensor and ambient feedback device — [PRIOR_ART_EARBUD_CLOSED_LOOP.md](PRIOR_ART_EARBUD_CLOSED_LOOP.md) | [10440](https://www.tdcommons.org/dpubs_series/10440) |
+   | Heart-rate-recovery-gated rest-interval timing — [PRIOR_ART_REST_GATING.md](PRIOR_ART_REST_GATING.md) | [10441](https://www.tdcommons.org/dpubs_series/10441) |
+   | Crediting recorded prior activity toward an exercise warm-up — [PRIOR_ART_WARMUP_READINESS.md](PRIOR_ART_WARMUP_READINESS.md) | [10439](https://www.tdcommons.org/dpubs_series/10439) |
+   | Synchronized multi-line digital signal generation (USB D−/D+) | [10442](https://www.tdcommons.org/dpubs_series/10442) |
+   | Robust overnight HRV estimation independent of sleep/wake staging | [10443](https://www.tdcommons.org/dpubs_series/10443) |
+   | Nap-level HRV and nap-day recovery comparison | [10454](https://www.tdcommons.org/dpubs_series/10454) |
+   | Active-sleep (dream-enactment) burden over a staging-independent in-bed window | [10455](https://www.tdcommons.org/dpubs_series/10455) |
+   | Per-session sleep onset latency, two-tailed | [10494](https://www.tdcommons.org/dpubs_series/10494) |
+   | Privacy-preserving population and cohort biometric histograms (on-device DP + secure aggregation) | [10495](https://www.tdcommons.org/dpubs_series/10495) |
+
+   Publishing them as prior art keeps them freely practicable by anyone and prevents third parties
+   from patenting them. That is their only purpose — they do **not** give away the source code or
+   the application.
 2. **Code license.** The *source code* is governed separately by **[LICENSE](LICENSE)**, and may be relicensed in future without affecting the prior-art dedication above.
 3. **The application.** *SteadyHeartBeat the product* — its distribution, pricing, and availability — is a halfmarble product decision, independent of the two layers above.
 
