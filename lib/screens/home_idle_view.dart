@@ -183,7 +183,7 @@ class _RoundBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final phase = provider.roundPhase;
-    // During an Plus module-driven phase (e.g. an HR-gated warm-up) the module
+    // During a module-driven phase (e.g. an HR-gated warm-up) the module
     // supplies its own panel instead of the countdown banner. Null in the free
     // core and outside gated phases.
     final plusBanner = provider.plus.roundBanner(context, phase);

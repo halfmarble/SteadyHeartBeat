@@ -6,12 +6,12 @@ import '../constants.dart';
 /// bottom sheet in the app repeats verbatim.
 ///
 /// Extracted because both had drifted into 8 (back button) and 6 (sheet)
-/// byte-identical copies across core and Plus code. Keeping one copy means a
+/// byte-identical copies across the app. Keeping one copy means a
 /// tap-target, Semantics or safe-area fix lands everywhere at once instead of
 /// in whichever screen someone remembered.
 ///
-/// Core (public) code: it must not reference anything under lib/plus/, since
-/// the Plus screens import it and the free export has to compile without them.
+/// This file is core: it must not reference any optional module, because every
+/// build has to compile with this file and nothing else.
 
 /// The standard back affordance for a pushed screen — `AppBar.leading`.
 ///
@@ -41,7 +41,7 @@ Widget appBarTitle(String text) => Text(text,
 /// Height is capped at 85% of the screen so the tap-to-dismiss scrim and the
 /// grabber stay reachable on long content, and the body scrolls inside that
 /// cap rather than overflowing — previously only the metric explainer did
-/// this, so the Plus explainers could overflow on small devices with large
+/// this, so other explainer sheets could overflow on small devices with large
 /// text. Applying it everywhere is the one intentional behavior change in this
 /// extraction.
 ///
@@ -71,10 +71,10 @@ Future<void> showAppSheet({
 
 /// The sheet's inner layout — capped, scrollable, grab handle and title.
 ///
-/// Public so a sheet whose body must be stateful (the Plus paywall) gets the
-/// same cap and the same scroll behavior without having to re-derive them; that
-/// divergence is exactly how the paywall ended up as the one sheet that could
-/// clip its own Restore Purchases button.
+/// Public so a sheet whose body must be STATEFUL — and therefore cannot pass a
+/// fixed `children` list to [showAppSheet] — still gets the same cap and the
+/// same scroll behavior instead of re-deriving them. A sheet that re-derived
+/// them is exactly how one ended up able to clip its own primary action.
 Widget sheetBody(
   BuildContext ctx, {
   required String title,
@@ -113,10 +113,10 @@ Widget sheetBody(
 
 /// The drag indicator at the top of a sheet.
 ///
-/// Public for [sheetBody] and for the Plus paywall, which builds its own
-/// stateful body. NOT used by pre_workout_sheet.dart — both of its sheets take
-/// Material's `showDragHandle: true` instead, so an accessibility change here
-/// (bigger drag target, more contrast than [kTextDim]) does not reach them.
+/// Public for [sheetBody] and for any sheet building its own stateful body.
+/// NOT used by pre_workout_sheet.dart — both of its sheets take Material's
+/// `showDragHandle: true` instead, so an accessibility change here (bigger drag
+/// target, more contrast than [kTextDim]) does not reach them.
 class SheetGrabHandle extends StatelessWidget {
   const SheetGrabHandle({super.key});
 

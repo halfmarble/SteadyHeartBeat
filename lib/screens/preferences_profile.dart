@@ -543,7 +543,7 @@ class _AboutSection extends StatelessWidget {
   Widget build(BuildContext context) {
     // Build number from kBuildNumber (auto-written by the Xcode build phase, the
     // same source as the home header badge — so they can't disagree). "+" marks
-    // an Plus build (module compiled in), shown in both places or neither.
+    // a build with the paid module compiled in, shown in both places or neither.
     final plus = context.read<WorkoutProvider>().plus.available;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
