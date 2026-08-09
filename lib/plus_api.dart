@@ -19,8 +19,8 @@ abstract class PlusFeatures {
   /// Whether the trends/research surface (daily metric charts, sleep, naps,
   /// recovery) is visible in this build. Owner-only by design: trends is
   /// halfmarble's research instrument (the OpenBioenergyGauge rehearsal), not
-  /// part of the sellable Plus scope (docs/SHB_PLUS_PRICING.md), so it never
-  /// keys off the StoreKit entitlement.
+  /// part of the sellable Plus scope, so it never keys off the StoreKit
+  /// entitlement.
   bool get trendsVisible;
 
   /// Pushes the current StoreKit entitlement into the module. Called by the

@@ -1,13 +1,13 @@
 import Flutter
 import StoreKit
 
-/// StoreKit 2 wrapper for the two in-app purchases (free-core: the entitlement
-/// boolean and the tip jar both belong to the core, per
-/// docs/OPEN_CORE_ARCHITECTURE.md — `isPlusUnlocked` is the one choke point and
-/// it lives core-side). The Plus *features* stay in lib/plus/; this only owns
+/// StoreKit 2 wrapper for the two in-app purchases. Free-core by design: the
+/// entitlement boolean and the tip jar both belong to the core — `isPlusUnlocked`
+/// is the one choke point and it lives core-side. The Plus *features* stay in
+/// lib/plus/; this only owns
 /// "does the user own the unlock," surfaced to Flutter as a plain bool.
 ///
-/// - Product IDs come from docs/SHB_PLUS_PRICING.md / APP_STORE_SETUP.md §11.
+/// - Product IDs must match `iap_service.dart` and App Store Connect exactly.
 /// - Entitlement is the source of truth: `Transaction.currentEntitlements`,
 ///   re-checked on launch, after any purchase/restore, and on every
 ///   `Transaction.updates` (Ask-to-Buy approvals, other-device purchases,

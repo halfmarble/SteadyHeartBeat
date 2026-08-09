@@ -7,13 +7,13 @@ import 'package:flutter/services.dart';
 /// Free-core on purpose: the Plus entitlement bool and the tip jar are both
 /// core concerns — only the paid *features* live in `lib/plus/`. The provider
 /// pushes the entitlement into the module via `PlusFeatures.setUnlocked`; this
-/// service never imports `lib/plus/`. See docs/OPEN_CORE_ARCHITECTURE.md.
+/// service never imports `lib/plus/`.
 class IapService {
   static const _method = MethodChannel('steadyheartbeat/store');
   static const _entitlements = EventChannel('steadyheartbeat/entitlements');
 
-  /// Product IDs — must match `StoreManager.swift` and App Store Connect
-  /// exactly (docs/SHB_PLUS_PRICING.md, APP_STORE_SETUP.md §11/§2).
+  /// Product IDs — must match `StoreManager.swift` and the App Store Connect
+  /// listing exactly. Changing one without the others silently breaks purchase.
   static const plusProductId = 'com.halfmarble.steady_heart_beat.plus';
   static const tipProductId = 'com.halfmarble.steady_heart_beat.tip199';
 

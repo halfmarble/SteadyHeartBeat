@@ -25,7 +25,8 @@ import 'session_storage_service.dart';
 ///
 /// Honest limitation, surfaced in the bundle: AirPods Pro 3 give beats-per-minute,
 /// not R-R intervals, so this contributes an `hr_bpm` series — below OBG Level 1
-/// "Core" (which wants `rr_ms`). See docs/DATA_PORTABILITY.md.
+/// "Core" (which wants `rr_ms`) — the bundle says so rather than implying a
+/// fidelity it does not have.
 class DonationService {
   /// OBG Conformance schema version this export targets (Conformance.md §4, draft).
   static const obgSchemaVersion = '0.1.0';
