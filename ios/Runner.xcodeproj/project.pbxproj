@@ -17,6 +17,8 @@
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		AA000001AA000001AA000001 /* WorkoutManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002AA000002AA000002 /* WorkoutManager.swift */; };
+		AA000007AA000007AA000007 /* HealthHistoryRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000008AA000008AA000008 /* HealthHistoryRepository.swift */; };
+		AA000009AA000009AA000009 /* AnnounceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000AAA00000AAA00000A /* AnnounceEngine.swift */; };
 		AA000003AA000003AA000003 /* GateEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000004AA000004AA000004 /* GateEngine.swift */; };
 		AA000005AA000005AA000005 /* StoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000006AA000006AA000006 /* StoreManager.swift */; };
 		BB000001BB000001BB000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BB000002BB000002BB000002 /* PrivacyInfo.xcprivacy */; };
@@ -64,6 +66,8 @@
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA000002AA000002AA000002 /* WorkoutManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutManager.swift; sourceTree = "<group>"; };
+		AA000008AA000008AA000008 /* HealthHistoryRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthHistoryRepository.swift; sourceTree = "<group>"; };
+		AA00000AAA00000AAA00000A /* AnnounceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnounceEngine.swift; sourceTree = "<group>"; };
 		AA000004AA000004AA000004 /* GateEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GateEngine.swift; path = Plus/GateEngine.swift; sourceTree = "<group>"; };
 		AA000006AA000006AA000006 /* StoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreManager.swift; sourceTree = "<group>"; };
 		BB000002BB000002BB000002 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -150,6 +154,8 @@
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				AA000002AA000002AA000002 /* WorkoutManager.swift */,
+				AA000008AA000008AA000008 /* HealthHistoryRepository.swift */,
+				AA00000AAA00000AAA00000A /* AnnounceEngine.swift */,
 				AA000006AA000006AA000006 /* StoreManager.swift */,
 				AA000004AA000004AA000004 /* GateEngine.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
@@ -332,6 +338,8 @@
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 				AA000001AA000001AA000001 /* WorkoutManager.swift in Sources */,
+				AA000007AA000007AA000007 /* HealthHistoryRepository.swift in Sources */,
+				AA000009AA000009AA000009 /* AnnounceEngine.swift in Sources */,
 				AA000005AA000005AA000005 /* StoreManager.swift in Sources */,
 				AA000003AA000003AA000003 /* GateEngine.swift in Sources */,
 			);

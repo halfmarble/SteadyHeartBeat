@@ -79,19 +79,19 @@ import AVFoundation
                 result(nil)
 
             case "getHealthProfile":
-                result(WorkoutManager.shared.getHealthProfile())
+                result(HealthHistoryRepository.shared.getHealthProfile())
 
             case "getRecentHRV":
-                WorkoutManager.shared.getRecentHRV { data in result(data) }
+                HealthHistoryRepository.shared.getRecentHRV { data in result(data) }
 
             case "getRestingHR":
-                WorkoutManager.shared.getRestingHR { data in result(data) }
+                HealthHistoryRepository.shared.getRestingHR { data in result(data) }
 
             case "getVO2Max":
-                WorkoutManager.shared.getVO2Max { data in result(data) }
+                HealthHistoryRepository.shared.getVO2Max { data in result(data) }
 
             case "getBodyMass":
-                WorkoutManager.shared.getBodyMass { data in result(data) }
+                HealthHistoryRepository.shared.getBodyMass { data in result(data) }
 
             case "setVoice":
                 let identifier = (call.arguments as? [String: Any])?["identifier"] as? String ?? ""
@@ -123,27 +123,27 @@ import AVFoundation
                 result(nil)
 
             case "listHealthWorkouts":
-                WorkoutManager.shared.listHealthWorkouts { result($0) }
+                HealthHistoryRepository.shared.listHealthWorkouts { result($0) }
 
             case "getHeartRateSeries":
                 let args = call.arguments as? [String: Any]
                 let start = args?["startEpoch"] as? Double ?? 0
                 let end = args?["endEpoch"] as? Double ?? 0
-                WorkoutManager.shared.getHeartRateSeries(startEpoch: start, endEpoch: end) {
+                HealthHistoryRepository.shared.getHeartRateSeries(startEpoch: start, endEpoch: end) {
                     result($0)
                 }
 
             case "getMetricSamples":
                 let days = (call.arguments as? [String: Any])?["days"] as? Int ?? 3653
-                WorkoutManager.shared.getMetricSamples(days: days) { result($0) }
+                HealthHistoryRepository.shared.getMetricSamples(days: days) { result($0) }
 
             case "getReadinessHistory":
                 let days = (call.arguments as? [String: Any])?["days"] as? Int ?? 30
-                WorkoutManager.shared.getReadinessHistory(days: days) { result($0) }
+                HealthHistoryRepository.shared.getReadinessHistory(days: days) { result($0) }
 
             case "getDailyHistory":
                 let days = (call.arguments as? [String: Any])?["days"] as? Int ?? 30
-                WorkoutManager.shared.getDailyHistory(days: days) { result($0) }
+                HealthHistoryRepository.shared.getDailyHistory(days: days) { result($0) }
 
             case "setAnnounceInterval":
                 let seconds = (call.arguments as? [String: Any])?["seconds"] as? Int ?? 15

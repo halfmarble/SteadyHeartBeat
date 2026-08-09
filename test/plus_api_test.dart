@@ -15,6 +15,7 @@ void main() {
       final plus = NoPlusFeatures();
       expect(plus.available, isFalse);
       expect(plus.unlocked, isFalse);
+      expect(plus.trendsVisible, isFalse);
       expect(plus.gateActive, isFalse);
 
       // The entitlement push must not be able to unlock anything.

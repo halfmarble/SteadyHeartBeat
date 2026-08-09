@@ -98,7 +98,6 @@ void main() {
 
       await p.setManualAge(42);          // also derives + would-persist zones
       await p.setManualSex('female');
-      p.setHealthConditions({'cardiovascular', 'parkinsons'});
       await p.setManualHrv(55);
       await p.setManualVo2Max(48);
       await p.setManualRestingHr(52);
@@ -138,9 +137,10 @@ void main() {
       });
       final p = await _makeProvider(_CapturingWorkoutService());
 
-      // Loaded into memory via the fallback read…
+      // Loaded into memory via the fallback read… (the retired
+      // healthConditions value is ignored — the feature was removed — but its
+      // prefs copy must still survive a store failure, asserted below.)
       expect(p.manualAge, 40);
-      expect(p.healthConditions, {'cardiovascular'});
       expect(p.manualHrvMs, 55.0);
 
       // …and NOT stripped, since the excluded store couldn't accept them.

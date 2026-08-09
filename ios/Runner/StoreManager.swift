@@ -87,8 +87,18 @@ final class StoreManager {
             switch try await product.purchase() {
             case .success(let verification):
                 guard case .verified(let transaction) = verification else {
-                    return ["status": "failed",
-                            "message": "Could not verify the purchase."]
+                    // The user HAS been charged — StoreKit took the payment and
+                    // handed back a transaction whose signature/date check did
+                    // not pass. Reporting this as a plain failure tells a paying
+                    // customer the purchase did not happen. It is its own state,
+                    // with actionable advice (a wrong device clock is the usual
+                    // cause), and the transaction is deliberately NOT finished so
+                    // StoreKit redelivers it once verification succeeds.
+                    return ["status": "unverified",
+                            "message": "Your purchase went through, but this "
+                                + "device could not verify it yet. Check that "
+                                + "Date & Time is set automatically, then reopen "
+                                + "the app — it will finish on its own."]
                 }
                 await transaction.finish()
                 await refreshEntitlements()
@@ -110,11 +120,20 @@ final class StoreManager {
     /// Mandatory for the non-consumable (App Review). Pulls down the user's
     /// transactions and re-resolves the entitlement; the result lands on the
     /// entitlement stream.
+    ///
+    /// THREE-STATE, not a Bool. "the sync failed" and "you own nothing" are
+    /// opposite messages: collapsing them into one `ok` meant a paying customer
+    /// with no network — or an Apple ID needing re-auth — was told there was no
+    /// purchase to restore. `restored` / `nothingToRestore` / `failed` are
+    /// distinguished here so the UI can say the right thing.
     func restore() async -> [String: Any] {
         do {
             try await AppStore.sync()
             await refreshEntitlements()
-            return ["status": "ok"]
+            // refreshEntitlements has already pushed the truth to Flutter; read
+            // it back on the main actor for the synchronous answer.
+            let owned = await MainActor.run { plusEntitled }
+            return ["status": owned ? "restored" : "nothingToRestore"]
         } catch {
             return ["status": "failed", "message": error.localizedDescription]
         }

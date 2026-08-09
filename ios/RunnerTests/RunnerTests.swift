@@ -2,7 +2,7 @@ import XCTest
 @testable import Runner
 
 // Unit tests for the pure, HealthKit-/engine-free logic extracted from
-// WorkoutManager (OvernightMath, AnnounceQueue). These run on the simulator — they
+// WorkoutManager / HealthHistoryRepository (OvernightMath, AnnounceQueue). These run on the simulator — they
 // touch no HealthKit, audio, or workout-session APIs. Run with:
 //   xcodebuild test -workspace ios/Runner.xcworkspace -scheme Runner \
 //     -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
@@ -252,7 +252,7 @@ final class AnnounceQueueTests: XCTestCase {
     }
 }
 
-// WorkoutManager.droppingCurrentDay — the pure rule that keeps a partial current
+// HealthHistoryRepository.droppingCurrentDay — the pure rule that keeps a partial current
 // day out of the daily-history trends (resting/walking HR, steps, HR min/max).
 final class DailyHistoryTests: XCTestCase {
     private let day: TimeInterval = 86400
@@ -269,22 +269,22 @@ final class DailyHistoryTests: XCTestCase {
             ["date": 10 * day, "value": 3.0],          // today's bucket → dropped
             ["date": 10 * day + 3600, "value": 4.0],   // later today  → dropped
         ]
-        let out = WorkoutManager.droppingCurrentDay(pts, todayStart: todayStart)
+        let out = HealthHistoryRepository.droppingCurrentDay(pts, todayStart: todayStart)
         XCTAssertEqual(dates(out), [8 * day, 9 * day])
     }
 
     func testKeepsEverythingWhenTodayIsInTheFuture() {
         let pts: [[String: Any]] = [["date": 1 * day], ["date": 2 * day]]
-        XCTAssertEqual(WorkoutManager.droppingCurrentDay(pts, todayStart: 100 * day).count, 2)
+        XCTAssertEqual(HealthHistoryRepository.droppingCurrentDay(pts, todayStart: 100 * day).count, 2)
     }
 
     func testEmptyStaysEmpty() {
-        XCTAssertTrue(WorkoutManager.droppingCurrentDay([], todayStart: 0).isEmpty)
+        XCTAssertTrue(HealthHistoryRepository.droppingCurrentDay([], todayStart: 0).isEmpty)
     }
 
     func testMalformedEntryWithoutDateIsDropped() {
         let pts: [[String: Any]] = [["value": 1.0], ["date": 5 * day, "value": 2.0]]
-        let out = WorkoutManager.droppingCurrentDay(pts, todayStart: 10 * day)
+        let out = HealthHistoryRepository.droppingCurrentDay(pts, todayStart: 10 * day)
         XCTAssertEqual(dates(out), [5 * day])
     }
 }

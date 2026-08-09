@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import '../constants.dart';
 import '../widgets/metric_explainer.dart';
+import '../widgets/app_chrome.dart';
 
 /// "How it works" — the Glass Box science screen, reached from the ⓘ in the home
 /// top bar. Explains, with citations, every derived number the app shows: the
@@ -19,15 +19,7 @@ class HowItWorksScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('How it works'),
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => Navigator.pop(context),
-          child: Semantics(
-            button: true,
-            label: 'Back',
-            child: const Icon(CupertinoIcons.back, color: kAccent),
-          ),
-        ),
+        leading: backButton(context),
       ),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),

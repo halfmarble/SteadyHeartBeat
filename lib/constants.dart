@@ -135,7 +135,13 @@ const double kFontMD      = 13.0;  // body / hint text
 const double kFontLG      = 15.0;  // card titles, primary labels
 const double kFontXL      = 16.0;  // section headings, dialog titles
 const double kFontStat    = 18.0;  // stat chip values
-const double kFontBtn     = 17.0;  // button labels
+// Unused by lib/, but NOT dead: motion-feature/lib/screens/steadiness_screen.dart
+// uses it three times, and analysis_options.yaml excludes that directory from
+// `flutter analyze` — so deleting it leaves a dangling reference that a green
+// build cannot see, and breaks the restore path in
+// RETAINED_DISCLOSURE_earbud_imu.md. Grep the whole worktree, not just lib/,
+// before removing anything from this file.
+const double kFontBtn     = 17.0;  // button labels (motion-feature/ archive)
 const double kFontDisplay = 26.0;  // large metric values (HRV, resting HR, VO₂)
 
 // ── Spacing ───────────────────────────────────────────────────────────────────
@@ -146,6 +152,10 @@ const double kSpaceLG  = 10.0;
 const double kSpaceXL  = 12.0;
 const double kSpaceXXL = 16.0;
 const double kSpaceMax = 20.0;
+
+// Minimum tappable square (Apple HIG). Small glyphs like the metric ⓘ pad
+// their hit region out to this even when drawn smaller.
+const double kMinTapTarget = 44.0;
 
 // ── Icon sizes ────────────────────────────────────────────────────────────────
 const double kIconXS   = 16.0;  // inline / trailing action icons
@@ -161,4 +171,3 @@ const int kAlphaHigh     = 0xBB;  // zone labels, prominent secondary
 
 // ── Opacity (0.0–1.0) ─────────────────────────────────────────────────────────
 const double kOpacityDisabled = 0.35;  // greyed-out / inactive elements
-const double kOpacityMuted    = 0.38;  // selector disabled overlay

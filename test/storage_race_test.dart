@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
-import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'helpers/fakes.dart';
 import 'package:steady_heart_beat/services/session_storage_service.dart';
 
 // The in-progress snapshot write/delete race: a throttled fire-and-forget
@@ -10,14 +10,6 @@ import 'package:steady_heart_beat/services/session_storage_service.dart';
 // next launch then "recovered" as a duplicate session. The service now chains
 // writes and clearInProgress awaits the tail of the chain.
 
-class _FakePathProvider extends PathProviderPlatform
-    with MockPlatformInterfaceMixin {
-  _FakePathProvider(this.docsPath);
-  final String docsPath;
-  @override
-  Future<String?> getApplicationDocumentsPath() async => docsPath;
-}
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -25,7 +17,7 @@ void main() {
 
   setUp(() {
     tempDir = Directory.systemTemp.createTempSync('shb_storage_race_');
-    PathProviderPlatform.instance = _FakePathProvider(tempDir.path);
+    PathProviderPlatform.instance = FakePathProvider(tempDir.path);
   });
 
   tearDown(() {

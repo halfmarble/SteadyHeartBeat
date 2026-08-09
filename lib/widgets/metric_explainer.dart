@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../constants.dart';
 import '../health_norms.dart';
+import 'app_chrome.dart';
 
 /// A peer-reviewed source for a metric's health information, shown under
 /// "Sources" in the explainer sheet (App Store Guideline 1.4.1). [url] is
@@ -39,6 +40,9 @@ const Citation kCiteTanaka = Citation(
     'Age-predicted maximum heart rate — Tanaka, Monahan & Seals, J Am Coll '
     'Cardiol 2001',
     'https://doi.org/10.1016/S0735-1097(00)01054-8');
+const Citation kCiteColeHrr = Citation(
+    'Heart-rate recovery after exercise — Cole et al., N Engl J Med 1999',
+    'https://doi.org/10.1056/NEJM199910283411804');
 const Citation kCiteAcsmIntensity = Citation(
     'Exercise intensity by %max HR — ACSM Position Stand (Garber et al.), Med '
     'Sci Sports Exerc 2011',
@@ -171,6 +175,16 @@ const Map<String, MetricExplainer> kMetricExplainers = {
         'session was overall rather than any single moment.',
     'This is a general wellness reading, not a medical measurement.',
   ]),
+  'minHr': MetricExplainer('min HR', [
+    'This is the lowest heart rate your AirPods recorded during this workout — '
+        'usually the very first reading before you get moving, or the bottom of '
+        'a rest between rounds.',
+    'It isn’t the same as your resting heart rate, which is measured over calm, '
+        'still stretches outside exercise. The workout minimum simply shows the '
+        'lowest point your heart rate reached while the session was running, so '
+        'it depends on when you started monitoring and how long any rests were.',
+    'This is a general wellness reading, not a medical measurement.',
+  ]),
   'effort': MetricExplainer('effort', [
     'Effort is your average heart rate as a percentage of your estimated maximum '
         '(average HR ÷ estimated max HR × 100). As a rough guide, 60–70% is easy '
@@ -228,82 +242,25 @@ Future<void> showMetricExplainer(BuildContext context, String key,
   // Fall back to a text range only when we can't draw the gauge (no value).
   final refRange =
       gauge == null ? referenceRange(key, age: age, female: female) : null;
-  // Cap at 85% so a tap-to-dismiss scrim and the grabber stay reachable even
-  // when the content is long; the body scrolls inside.
-  final maxH = MediaQuery.of(context).size.height * 0.85;
-  await showModalBottomSheet<void>(
+  await showAppSheet(
     context: context,
-    backgroundColor: kSurface,
-    isScrollControlled: true,
-    constraints: BoxConstraints(maxHeight: maxH),
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (ctx) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 18),
-                decoration: BoxDecoration(
-                  color: kTextDim,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            Text(
-              info.title,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: kFontXL,
-                  fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 14),
-            Flexible(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Expected-range box first, directly under the title.
-                    if (refRange != null || gauge != null) ...[
-                      _ReferenceRangeBox(
-                          text: refRange,
-                          gauge: gauge,
-                          dist: dist,
-                          percentile: pct),
-                      const SizedBox(height: 16),
-                    ],
-                    // Then "vs your own history" (Plus Trends only).
-                    if (personal != null) ...[
-                      _PersonalHistoryBox(
-                          dist: personal,
-                          value: value!,
-                          percentile: personalPct),
-                      const SizedBox(height: 16),
-                    ],
-                    for (final p in info.paragraphs) ...[
-                      Text(
-                        p,
-                        style: const TextStyle(
-                            color: kTextSubtle, fontSize: kFontMD, height: 1.45),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    SourcesBlock(info.sources),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
+    title: info.title,
+    children: [
+      // Expected-range box first, directly under the title.
+      if (refRange != null || gauge != null) ...[
+        _ReferenceRangeBox(
+            text: refRange, gauge: gauge, dist: dist, percentile: pct),
+        const SizedBox(height: 16),
+      ],
+      // Then "vs your own history" (Plus Trends only).
+      if (personal != null) ...[
+        _PersonalHistoryBox(
+            dist: personal, value: value!, percentile: personalPct),
+        const SizedBox(height: 16),
+      ],
+      ...sheetParagraphs(info.paragraphs),
+      SourcesBlock(info.sources),
+    ],
   );
 }
 

@@ -7,6 +7,7 @@ import '../services/health_import_service.dart';
 import '../constants.dart';
 import '../utils.dart';
 import '../widgets/workout_type_icon.dart';
+import '../widgets/app_chrome.dart';
 
 /// Imports past workouts from Apple Health as local sessions — the recovery
 /// path when session files are lost from this device (every finished workout
@@ -106,16 +107,8 @@ class _ImportHealthScreenState extends State<ImportHealthScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Import from Apple Health',
-            style: TextStyle(
-                fontSize: kFontLG,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.5)),
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => Navigator.pop(context),
-          child: const Icon(CupertinoIcons.back, color: kAccent),
-        ),
+        title: appBarTitle('Import from Apple Health'),
+        leading: backButton(context),
       ),
       body: _all == null
           ? const Center(child: CircularProgressIndicator(color: kAccent))

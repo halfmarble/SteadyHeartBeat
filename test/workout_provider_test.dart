@@ -1,61 +1,16 @@
-import 'dart:async';
+
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wakelock_plus_platform_interface/wakelock_plus_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:steady_heart_beat/providers/workout_provider.dart';
-import 'package:steady_heart_beat/services/workout_service.dart';
-import 'package:steady_heart_beat/services/tts_service.dart';
+import 'helpers/fakes.dart';
 
 // ── Fakes ─────────────────────────────────────────────────────────────────────
 
-class _FakeWorkoutService extends WorkoutService {
-  final _hrCtrl = StreamController<Map<String, dynamic>>.broadcast();
-  final _statusCtrl = StreamController<Map<String, dynamic>>.broadcast();
-
-  void pushHR(double bpm) => _hrCtrl.add({'bpm': bpm});
-  void pushStatus(Map<String, dynamic> event) => _statusCtrl.add(event);
-  Future<void> closeStreams() async {
-    await _hrCtrl.close();
-    await _statusCtrl.close();
-  }
-
-  @override Future<bool> requestAuthorization() async => true;
-  @override Future<bool> startWorkout({String workoutType = 'other', int announceIntervalSeconds = 15}) async => true;
-  @override Future<void> stopWorkout() async {}
-  @override Future<void> setAnnounceInterval(int seconds) async {}
-  @override Future<void> setSaveToHealth(bool enabled) async {}
-  bool? lastUseImperial;
-  @override Future<void> setUseImperial(bool imperial) async { lastUseImperial = imperial; }
-  @override Future<Map<String, dynamic>> checkAirPods() async =>
-      {'connected': true, 'activeOnThisDevice': true, 'name': 'Test AirPods'};
-  @override Future<bool> bindAirPods() async => true;
-  @override Future<Map<String, dynamic>?> getHealthProfile() async => {
-    'available': true, 'age': 40, 'maxHeartRate': 180,
-    'zone1End': 90, 'zone2Start': 108, 'zone3Start': 126,
-    'zone4Start': 144, 'zone5Start': 162,
-  };
-  @override Future<Map<String, dynamic>?> getRecentHRV() async => null;
-  @override Future<Map<String, dynamic>?> getRestingHR() async => null;
-  @override Future<Map<String, dynamic>?> getVO2Max() async => null;
-  @override Future<Map<String, dynamic>?> getBodyMass() async => null;
-  @override Future<List<Map<String, dynamic>>> listVoices() async => const [];
-  @override Future<String> currentVoiceIdentifier() async => '';
-  @override Future<void> previewVoice(String identifier, {String? text}) async {}
-  @override Future<void> setZones(List<int> bounds) async {}
-  @override Future<void> setZoneCoaching({required bool enabled, required int targetZone}) async {}
-  @override Future<void> setBoxingRounds({required bool enabled, required int roundSecs, required int restSecs, required int totalRounds, required int warnSecs, required int prepSecs}) async {}
-  @override Stream<Map<String, dynamic>> get heartRateStream => _hrCtrl.stream;
-  @override Stream<Map<String, dynamic>> get statusStream => _statusCtrl.stream;
-}
-
-/// No-op wakelock so `_setError` / start paths that toggle the screen lock
-/// don't hit the (unmocked) platform channel under test.
-class _FakeWakelock extends WakelockPlusPlatformInterface {
-  @override
-  Future<void> toggle({required bool enable}) async {}
-  @override
-  Future<bool> get enabled async => false;
+/// The shared inert service, specialised with the standard zoned profile.
+class _FakeWorkoutService extends FakeWorkoutService {
+  _FakeWorkoutService() : super(healthProfile: kTestHealthProfile);
 }
 
 /// A workout service whose native startWorkout throws (as the real channel
@@ -132,25 +87,16 @@ class _BedHrWorkoutService extends _FakeWorkoutService {
       {'bpm': 58.0, 'timestamp': 1700000000.0, 'source': 'bed', 'count': 40};
 }
 
-class _FakeTtsService extends TtsService {
-  final List<String> spoken = [];
-  @override Future<void> init() async {}
-  @override Future<void> setVoice(String gender) async {}
-  @override Future<void> speak(String text, {bool force = false}) async => spoken.add(text);
-  @override Future<void> stop() async {}
-  @override Future<void> dispose() async {}
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 Future<WorkoutProvider> _makeProvider({
   _FakeWorkoutService? workout,
-  _FakeTtsService? tts,
+  FakeTtsService? tts,
 }) async {
   SharedPreferences.setMockInitialValues({});
   final provider = WorkoutProvider(
     workout: workout ?? _FakeWorkoutService(),
-    tts: tts ?? _FakeTtsService(),
+    tts: tts ?? FakeTtsService(),
   );
   // Allow _loadPrefs() async chain to complete
   await Future.delayed(Duration.zero);
@@ -161,16 +107,16 @@ Future<WorkoutProvider> _makeProvider({
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  WakelockPlusPlatformInterface.instance = _FakeWakelock();
+  WakelockPlusPlatformInterface.instance = FakeWakelock();
 
   // ── Delta-announce ─────────────────────────────────────────────────────────
 
   group('delta announce', () {
-    late _FakeTtsService tts;
+    late FakeTtsService tts;
     late WorkoutProvider provider;
 
     setUp(() async {
-      tts = _FakeTtsService();
+      tts = FakeTtsService();
       provider = await _makeProvider(tts: tts);
       // Announce-on-change is off by default now; this group tests the delta
       // path, so opt in explicitly. (The "delta disabled" case below turns it
@@ -428,7 +374,7 @@ void main() {
         'announceInterval': 30,
       });
       final provider =
-          WorkoutProvider(workout: _FakeWorkoutService(), tts: _FakeTtsService());
+          WorkoutProvider(workout: _FakeWorkoutService(), tts: FakeTtsService());
       await provider.initialized;
       // Pre-existing prefs survive the upgrade. (The Plus module's own
       // missing-key defaults are covered in test/plus/plus_gate_test.dart.)

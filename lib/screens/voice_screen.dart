@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import '../providers/workout_provider.dart';
 import '../constants.dart';
+import '../widgets/app_chrome.dart';
 
 /// Dedicated voice picker. Lists every English voice installed on the iPhone
 /// (best quality first), lets the user sample each, and pick one — or leave it
@@ -87,15 +88,7 @@ class _VoiceScreenState extends State<VoiceScreen> with WidgetsBindingObserver {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Voice'),
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => Navigator.pop(context),
-          child: Semantics(
-            button: true,
-            label: 'Back',
-            child: const Icon(CupertinoIcons.back, color: kAccent),
-          ),
-        ),
+        leading: backButton(context),
       ),
       body: _loading
           ? const Center(child: CupertinoActivityIndicator())

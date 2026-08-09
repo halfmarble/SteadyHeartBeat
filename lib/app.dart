@@ -10,6 +10,20 @@ class SteadyHeartBeatApp extends StatelessWidget {
     return MaterialApp(
       title: 'SteadyHeartBeat',
       debugShowCheckedModeBanner: false,
+      // Dynamic Type, bounded. Every label is a Text widget, so it already
+      // follows the system text-size setting; this clamp keeps the extremes
+      // safe rather than opting out: cap at 1.4× so fixed-height chrome (the
+      // BPM display, control bar, stat chips, chart axes) scales without
+      // clipping, and floor at 1.0× so a "smaller text" setting never shrinks
+      // workout-critical numbers below their designed size.
+      builder: (context, child) {
+        final clamped = MediaQuery.textScalerOf(context)
+            .clamp(minScaleFactor: 1.0, maxScaleFactor: 1.4);
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: clamped),
+          child: child!,
+        );
+      },
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: kBackground,

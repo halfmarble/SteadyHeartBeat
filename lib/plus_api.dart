@@ -16,6 +16,13 @@ abstract class PlusFeatures {
   /// Whether the user owns the Plus unlock (StoreKit entitlement).
   bool get unlocked;
 
+  /// Whether the trends/research surface (daily metric charts, sleep, naps,
+  /// recovery) is visible in this build. Owner-only by design: trends is
+  /// halfmarble's research instrument (the OpenBioenergyGauge rehearsal), not
+  /// part of the sellable Plus scope (docs/SHB_PLUS_PRICING.md), so it never
+  /// keys off the StoreKit entitlement.
+  bool get trendsVisible;
+
   /// Pushes the current StoreKit entitlement into the module. Called by the
   /// provider whenever the `steadyheartbeat/entitlements` stream changes (and
   /// once at startup). The module updates [unlocked] and notifies listeners.
@@ -46,10 +53,11 @@ abstract class PlusFeatures {
   /// or null to render the standard banner.
   Widget? roundBanner(BuildContext context, String phase);
 
-  /// Opens the daily-trends view for [metricKey] — the Plus chart when the
-  /// upgrade is unlocked, or an upgrade teaser otherwise. Called from the home
-  /// readiness snapshot when the user taps a metric value (a distinct affordance
-  /// from the ⓘ explainer on the metric's label).
+  /// Opens the daily-trends view for [metricKey]. A no-op unless
+  /// [trendsVisible] — callers hide the affordance in customer builds, and the
+  /// method guards anyway. Called from the home readiness snapshot when the
+  /// user taps a metric value (a distinct affordance from the ⓘ explainer on
+  /// the metric's label).
   void openTrends(BuildContext context, String metricKey);
 }
 
@@ -60,6 +68,8 @@ class NoPlusFeatures implements PlusFeatures {
   bool get available => false;
   @override
   bool get unlocked => false;
+  @override
+  bool get trendsVisible => false;
   @override
   void setUnlocked(bool owned) {}
   @override

@@ -289,7 +289,6 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   int roundTotal = 0;
   int roundRemaining = 0;
   int dangerZoneThreshold = 175;       // BPM above which the chart shows a danger band
-  Set<String> healthConditions = {};   // e.g. {'cardiovascular', 'parkinsons'}
   bool useImperial = true;             // true = ft/mi, false = m/km
   // Save finished workouts to Apple Health (Fitness rings + iCloud Health sync).
   // Off = the workout is discarded natively and stays on this device only.
@@ -529,8 +528,6 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     double? hDouble(String k) => (health[k] as num?)?.toDouble() ?? prefs.getDouble(k);
     String? hString(String k) => health[k] as String? ?? prefs.getString(k);
 
-    healthConditions = ((health['healthConditions'] as List?)?.cast<String>() ??
-        prefs.getStringList('healthConditions') ?? const <String>[]).toSet();
     dangerZoneThreshold = hInt('dangerZoneThreshold') ?? 175;
     // Restore Health-derived zones from last session
     healthAge = hInt('healthAge');
@@ -815,16 +812,18 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  /// Persists ALL personal health data — age, sex, self-reported conditions,
-  /// manual biometric overrides, and the derived HR zones — to the
+  /// Persists ALL personal health data — age, sex, manual biometric
+  /// overrides, and the derived HR zones — to the
   /// backup-excluded [HealthProfileStore], NOT shared_preferences (which is
   /// included in iCloud/iTunes backups). Null fields are omitted so a cleared
   /// value (e.g. age) doesn't leave stale zones to be reloaded next launch.
   /// Returns true if the write to the excluded store landed — callers use this
   /// to decide whether the legacy backed-up copy can be safely dropped.
   Future<bool> _saveHealthProfile() async {
+    // (The retired self-reported-conditions key is deliberately absent: the
+    // full-map rewrite drops any legacy 'healthConditions' value from the
+    // store on the first save after the feature's removal.)
     final data = <String, dynamic>{
-      'healthConditions': healthConditions.toList(),
       'dangerZoneThreshold': dangerZoneThreshold,
     };
     void putInt(String k, int? v) { if (v != null) data[k] = v; }
@@ -851,6 +850,9 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// after the data has been migrated into [HealthProfileStore], so existing
   /// installs stop leaving health data in the backed-up NSUserDefaults plist.
   /// Idempotent — keys already gone are no-ops.
+  // 'healthConditions' stays listed although the feature was removed
+  // (2026-07-16): the prefs copy on an existing install is health data in the
+  // backed-up plist and must still be scrubbed.
   static const _legacyHealthPrefKeys = [
     'manualAge', 'manualSex', 'healthSex', 'healthConditions',
     'manualHrv', 'manualVo2Max', 'manualRestingHr', 'manualWeight',
@@ -865,7 +867,7 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// Wipes everything the app stores on-device: the workout session history and
-  /// the health profile (age, sex, conditions, manual metrics, derived zones).
+  /// the health profile (age, sex, manual metrics, derived zones).
   /// App settings (voice, units, intervals) are intentionally kept — they aren't
   /// health data. Resets the in-memory health state to its first-launch defaults
   /// so the UI reflects the wipe immediately. Returns the number of sessions
@@ -878,7 +880,6 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     final prefs = await SharedPreferences.getInstance();
     await _stripLegacyHealthPrefs(prefs); // defensive: drop any un-migrated copies
 
-    healthConditions = {};
     dangerZoneThreshold = kDefaultDangerBpm;
     manualAge = null;
     manualSex = null;
@@ -1903,12 +1904,6 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     summaryHistogram = null;
     summaryZoneSecs = null;
     notifyListeners();
-  }
-
-  void setHealthConditions(Set<String> conditions) {
-    healthConditions = conditions;
-    notifyListeners();
-    _saveHealthProfile();
   }
 
   void setUseImperial(bool v) {

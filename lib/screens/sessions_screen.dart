@@ -9,7 +9,8 @@ import '../constants.dart';
 import '../utils.dart';
 import '../widgets/metric_explainer.dart';
 import '../widgets/workout_type_icon.dart';
-import 'home_screen.dart' show BpmChart;
+import '../widgets/bpm_chart.dart' show BpmChart;
+import '../widgets/app_chrome.dart';
 
 // ── Sessions screen ───────────────────────────────────────────────────────────
 
@@ -67,16 +68,8 @@ class _SessionsScreenState extends State<SessionsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sessions',
-            style: TextStyle(
-                fontSize: kFontLG,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.5)),
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => Navigator.pop(context),
-          child: const Icon(CupertinoIcons.back, color: kAccent),
-        ),
+        title: appBarTitle('Sessions'),
+        leading: backButton(context),
       ),
       body: _sessions == null
           ? const Center(child: CircularProgressIndicator(color: kAccent))
@@ -560,6 +553,7 @@ class _SessionCard extends StatelessWidget {
     final endTime  = _parseDate(session['endTime'] as String?);
     final durSecs  = (session['durationSeconds'] as num?)?.toInt() ?? 0;
     final maxBpm   = (session['maxBpm']    as num?)?.toDouble();
+    final minBpm   = (session['minBpm']    as num?)?.toDouble();
     final avgBpm   = (session['avgBpm']    as num?)?.toDouble();
     final kcal     = (session['kcal']      as num?)?.toDouble();
     final effort   = (session['effortPct'] as num?)?.toDouble();
@@ -627,19 +621,30 @@ class _SessionCard extends StatelessWidget {
             ),
             const SizedBox(height: kSpaceMD),
           ],
-          // Primary stats — under the histogram
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              if (maxBpm != null)
-                _Chip('max HR', '${maxBpm.round()}', 'bpm', kAccent, infoKey: 'maxHr'),
-              if (avgBpm != null)
-                _Chip('avg HR', '${avgBpm.round()}', 'bpm', kZone3, infoKey: 'avgHr'),
-              if (kcal != null)
-                _Chip('kcal', '${kcal.round()}', '', kZone2, infoKey: 'kcal'),
-              if (effort != null)
-                _Chip('effort', '${effort.round()}', '%', kCyan, infoKey: 'effort'),
-            ],
+          // Primary stats — under the histogram. A Wrap like the detail view:
+          // five chips can exceed a narrow card, and overflow should flow to a
+          // second line, not clip. Full-width SizedBox because this Column is
+          // crossAxisAlignment.start — a bare Wrap would shrink-wrap and lose
+          // the Row's edge-to-edge spaceEvenly spread.
+          SizedBox(
+            width: double.infinity,
+            child: Wrap(
+              alignment: WrapAlignment.spaceEvenly,
+              runSpacing: kSpaceSM,
+              children: [
+                if (maxBpm != null)
+                  _Chip('max HR', '${maxBpm.round()}', 'bpm', kAccent, infoKey: 'maxHr'),
+                if (avgBpm != null)
+                  _Chip('avg HR', '${avgBpm.round()}', 'bpm', kZone3, infoKey: 'avgHr'),
+                // Sessions predating minBpm persistence lack it — hide, not 0.
+                if (minBpm != null)
+                  _Chip('min HR', '${minBpm.round()}', 'bpm', kZone1, infoKey: 'minHr'),
+                if (kcal != null)
+                  _Chip('kcal', '${kcal.round()}', '', kZone2, infoKey: 'kcal'),
+                if (effort != null)
+                  _Chip('effort', '${effort.round()}', '%', kCyan, infoKey: 'effort'),
+              ],
+            ),
           ),
           // Activity stats — elevation always shown; floors/breaths when present.
           // (steps & duration live in the header next to the title.)
@@ -711,6 +716,7 @@ class _SessionSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final maxBpm  = _d(session['maxBpm']);
+    final minBpm  = _d(session['minBpm']);
     final avgBpm  = _d(session['avgBpm']);
     final kcal    = _d(session['kcal']);
     final effort  = _d(session['effortPct']);
@@ -729,12 +735,18 @@ class _SessionSummary extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // One stat line — the rest of the values (duration lives in the header).
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        // A Wrap, not a Row: with min HR this is up to seven chips, which can
+        // exceed the dialog width — overflow wraps to a second line instead.
+        Wrap(
+          alignment: WrapAlignment.spaceEvenly,
+          runSpacing: kSpaceMD,
           children: [
             _Chip('max HR', '${maxBpm.round()}', 'bpm', kAccent, infoKey: 'maxHr'),
             if (avgBpm != null)
               _Chip('avg HR', '${avgBpm.round()}', 'bpm', kZone3, infoKey: 'avgHr'),
+            // Sessions predating the chip may lack minBpm — hide, don't show 0.
+            if (minBpm != null)
+              _Chip('min HR', '${minBpm.round()}', 'bpm', kZone1, infoKey: 'minHr'),
             if (kcal != null)
               _Chip('kcal', '${kcal.round()}', '', kZone2, infoKey: 'kcal'),
             if (effort != null)
@@ -769,6 +781,9 @@ class _Chip extends StatelessWidget {
   Widget build(BuildContext context) {
     final chip = Column(
       mainAxisSize: MainAxisSize.min,
+      // Centers the drawn chip when the ConstrainedBox below pads the column
+      // out to the 44pt tap minimum; no-op when the chip is taller than that.
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Row(
           mainAxisSize: MainAxisSize.min,
@@ -779,7 +794,7 @@ class _Chip extends StatelessWidget {
             if (infoKey != null) ...[
               const SizedBox(width: 3),
               const Icon(CupertinoIcons.info_circle,
-                  size: 11, color: Colors.white),
+                  size: 14, color: Colors.white),
             ],
           ],
         ),
@@ -811,7 +826,16 @@ class _Chip extends StatelessWidget {
             female: p.effectiveSex == 'female',
             value: double.tryParse(value));
       },
-      child: chip,
+      // Invisible hit-area extension: the drawn chip stays its size, but the
+      // opaque tap region grows to the 44pt HIG minimum. A ConstrainedBox, NOT
+      // a Container with alignment — an aligned Container expands to fill any
+      // bounded constraint (inside a Wrap that means the whole run width, one
+      // chip per line).
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+            minWidth: kMinTapTarget, minHeight: kMinTapTarget),
+        child: chip,
+      ),
     );
   }
 }

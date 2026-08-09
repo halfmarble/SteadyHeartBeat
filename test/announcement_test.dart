@@ -11,28 +11,14 @@
 //   FakeWorkoutService — all methods no-op; streams unused (we call
 //                        simulateHeartRateForTest directly).
 
-import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:steady_heart_beat/providers/workout_provider.dart';
 import 'package:steady_heart_beat/services/tts_service.dart';
 import 'package:steady_heart_beat/services/workout_service.dart';
+import 'helpers/fakes.dart';
 
 // ── Fakes ─────────────────────────────────────────────────────────────────────
-
-class FakeTtsService extends TtsService {
-  final List<String> spoken = [];
-
-  @override Future<void> init() async {}
-  @override Future<void> setVoice(String gender) async {}
-  @override Future<void> stop() async {}
-  @override Future<void> dispose() async {}
-
-  @override
-  Future<void> speak(String text, {bool force = false}) async {
-    spoken.add(text);
-  }
-}
 
 /// A TtsService that is slow on the first call — used to test concurrent-call
 /// behavior. The second call fires before the first finishes.
@@ -56,32 +42,6 @@ class SlowFakeTtsService extends TtsService {
       _busy = false;
     }
   }
-}
-
-class FakeWorkoutService extends WorkoutService {
-  final _hrCtrl = StreamController<Map<String, dynamic>>.broadcast();
-  final _stCtrl = StreamController<Map<String, dynamic>>.broadcast();
-
-  @override Future<bool> requestAuthorization() async => true;
-  @override Future<bool> startWorkout({String workoutType = 'other', int announceIntervalSeconds = 15}) async => true;
-  @override Future<void> stopWorkout() async {}
-  @override Future<Map<String, dynamic>> checkAirPods() async =>
-      {'connected': true, 'activeOnThisDevice': true, 'name': 'Test AirPods'};
-  @override Future<bool> bindAirPods() async => true;
-  @override Future<Map<String, dynamic>?> getHealthProfile() async => {'available': false};
-  @override Future<Map<String, dynamic>?> getRecentHRV() async => null;
-  @override Future<Map<String, dynamic>?> getRestingHR() async => null;
-  @override Future<Map<String, dynamic>?> getVO2Max() async => null;
-  @override Future<Map<String, dynamic>?> getBodyMass() async => null;
-  @override Future<List<Map<String, dynamic>>> listVoices() async => const [];
-  @override Future<String> currentVoiceIdentifier() async => '';
-  @override Future<void> previewVoice(String identifier, {String? text}) async {}
-  @override Future<void> setZones(List<int> bounds) async {}
-  @override Future<void> setZoneCoaching({required bool enabled, required int targetZone}) async {}
-  @override Future<void> setBoxingRounds({required bool enabled, required int roundSecs, required int restSecs, required int totalRounds, required int warnSecs, required int prepSecs}) async {}
-
-  @override Stream<Map<String, dynamic>> get heartRateStream => _hrCtrl.stream;
-  @override Stream<Map<String, dynamic>> get statusStream => _stCtrl.stream;
 }
 
 // ── Test helpers ──────────────────────────────────────────────────────────────

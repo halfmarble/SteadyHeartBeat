@@ -137,7 +137,6 @@ void main() {
 
       await p.setManualAge(42);
       await p.setManualHrv(55);
-      p.setHealthConditions({'cardiovascular'});
       await SessionStorageService.save({'id': '2026-06-01T10:00:00.000'});
       await Future.delayed(Duration.zero);
 
@@ -150,7 +149,6 @@ void main() {
       // In-memory health state is reset to first-launch defaults.
       expect(p.manualAge, isNull);
       expect(p.manualHrvMs, isNull);
-      expect(p.healthConditions, isEmpty);
       expect(p.maxHeartRate, isNull);
       expect(p.zone5Start, isNull);
       // Non-health app settings survive.

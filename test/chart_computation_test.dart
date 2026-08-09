@@ -16,7 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:steady_heart_beat/providers/workout_provider.dart';
 import 'package:steady_heart_beat/constants.dart' show kSmoothWindow;
-import 'announcement_test.dart'; // reuse FakeTtsService / FakeWorkoutService
+import 'helpers/fakes.dart'; // reuse FakeTtsService / FakeWorkoutService
 
 // ── Reference implementation (mirrors the production smoother) ───────────────
 //

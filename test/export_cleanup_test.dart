@@ -1,23 +1,13 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
-import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'helpers/fakes.dart';
 import 'package:steady_heart_beat/services/export_service.dart';
 
 // The share flow writes a PLAINTEXT copy of the health export to the tmp dir
 // for the share sheet. That copy must not outlive the share — tmp is outside
 // the backup-excluded protected stores, and a lingering cleartext bundle
 // there would quietly defeat the point of protecting the real ones.
-
-class _FakePathProvider extends PathProviderPlatform
-    with MockPlatformInterfaceMixin {
-  _FakePathProvider(this.tmpPath);
-  final String tmpPath;
-  @override
-  Future<String?> getTemporaryPath() async => tmpPath;
-  @override
-  Future<String?> getApplicationDocumentsPath() async => tmpPath;
-}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -26,7 +16,7 @@ void main() {
 
   setUp(() {
     tempDir = Directory.systemTemp.createTempSync('shb_export_cleanup_');
-    PathProviderPlatform.instance = _FakePathProvider(tempDir.path);
+    PathProviderPlatform.instance = FakePathProvider(tempDir.path);
   });
 
   tearDown(() {
