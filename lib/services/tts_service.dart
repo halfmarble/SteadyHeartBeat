@@ -1,6 +1,12 @@
 import 'package:flutter/services.dart';
 
-/// Voice announcements via native AVSpeechSynthesizer (iOS).
+/// Voice announcements, rendered natively (iOS).
+///
+/// The voice is Kokoro-82M through Core ML — either a pre-rendered clip or a
+/// live render — played through the app's own AVAudioEngine. AVSpeechSynthesizer
+/// is the fallback tier only. See ios/Runner/AnnounceEngine.swift and
+/// ios/Runner/Kokoro/. Nothing is synthesized on the Dart side; this class is a
+/// MethodChannel shim.
 ///
 /// The native side (WorkoutManager) owns the AVAudioSession that the workout
 /// activates and holds active for the whole workout (no per-utterance

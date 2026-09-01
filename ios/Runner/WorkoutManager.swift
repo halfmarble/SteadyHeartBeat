@@ -478,8 +478,22 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     // only needed for background-over-music, which never applies in Settings. We
     // briefly take a ducking playback session so the sample is audible over Music.
     private let _previewSynth = AVSpeechSynthesizer()
-    func previewVoice(identifier: String, text: String) {
+
+    /// Plays a pre-rendered clip on the same foreground path as _previewSynth.
+    /// Anything that waits for, or silences, the preview synth must handle this
+    /// too — they are one logical channel with two implementations.
+    private var _previewPlayer: AVAudioPlayer?
+    private var _previewBusy: Bool {
+        _previewSynth.isSpeaking || (_previewPlayer?.isPlaying ?? false)
+    }
+    private func _silencePreview() {
         _previewSynth.stopSpeaking(at: .immediate)
+        _previewPlayer?.stop()
+        _previewPlayer = nil
+    }
+
+    func previewVoice(identifier: String, text: String) {
+        _silencePreview()
         let s = AVAudioSession.sharedInstance()
         try? s.setCategory(.playback, mode: .voicePrompt, options: [.mixWithOthers, .duckOthers])
         try? s.setActive(true, options: [])
@@ -1230,11 +1244,27 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
             try? s.setPreferredInput(port)
         }
 
-        let utt = AVSpeechUtterance(string: "Connecting to your AirPods. Please stand by.")
-        utt.voice = _speechVoice ?? AVSpeechSynthesisVoice(language: "en-US")
-        utt.rate = 0.48
-        utt.volume = 1.0
-        _previewSynth.speak(utt)
+        // This cue has a JOB beyond being heard: producing sound is what nudges
+        // the Bluetooth route into place, which is why it happens before the
+        // announce engine is running. It used to be spoken by _previewSynth,
+        // which meant the one phrase a user hears before every workout was the
+        // only one in the system voice — even though the corpus ships a Kokoro
+        // clip for it. Play the clip when we have it; the synth stays as the
+        // fallback, and still produces the sound the route needs either way.
+        let connecting = "Connecting to your AirPods. Please stand by."
+        if let url = AnnounceEngine.clips?.fileURLs(for: connecting)?.first,
+           let player = try? AVAudioPlayer(contentsOf: url) {
+            _previewPlayer = player
+            player.volume = 1.0
+            player.prepareToPlay()
+            player.play()
+        } else {
+            let utt = AVSpeechUtterance(string: connecting)
+            utt.voice = _speechVoice ?? AVSpeechSynthesisVoice(language: "en-US")
+            utt.rate = 0.48
+            utt.volume = 1.0
+            _previewSynth.speak(utt)
+        }
 
         // Poll up to ~6s for the route to switch here. Freshly-inserted buds can
         // take a couple seconds to complete the Bluetooth audio handshake once
@@ -1256,7 +1286,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         guard attemptsLeft > 0 else {
             // Gave up waiting for the route — silence any lingering cue so it
             // can't overlap whatever speaks next, then report failure.
-            _previewSynth.stopSpeaking(at: .immediate)
+            _silencePreview()
             completion(false)
             return
         }
@@ -1265,11 +1295,12 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         }
     }
 
-    // Poll until the foreground preview synthesizer goes idle (bounded ~5s), so a
-    // cue spoken through it finishes before the engine path speaks next.
+    // Poll until the foreground preview channel goes idle (bounded ~5s) — synth
+    // or clip player — so a cue spoken through it finishes before the engine
+    // path speaks next.
     private func _waitForPreviewIdle(attemptsLeft: Int = 25, _ done: @escaping () -> Void) {
-        if !_previewSynth.isSpeaking || attemptsLeft <= 0 {
-            _previewSynth.stopSpeaking(at: .immediate)
+        if !_previewBusy || attemptsLeft <= 0 {
+            _silencePreview()
             done()
             return
         }

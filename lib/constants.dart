@@ -135,13 +135,12 @@ const double kFontMD      = 13.0;  // body / hint text
 const double kFontLG      = 15.0;  // card titles, primary labels
 const double kFontXL      = 16.0;  // section headings, dialog titles
 const double kFontStat    = 18.0;  // stat chip values
-// Unused by lib/, but NOT dead: motion-feature/lib/screens/steadiness_screen.dart
-// uses it three times, and analysis_options.yaml excludes that directory from
+// Unused by lib/, but NOT dead: an archived module elsewhere in the working
+// tree uses it, and analysis_options.yaml excludes that directory from
 // `flutter analyze` — so deleting it leaves a dangling reference that a green
-// build cannot see, and breaks the restore path in
-// RETAINED_DISCLOSURE_earbud_imu.md. Grep the whole worktree, not just lib/,
-// before removing anything from this file.
-const double kFontBtn     = 17.0;  // button labels (motion-feature/ archive)
+// build cannot see. Grep the whole worktree, not just lib/, before removing
+// anything from this file.
+const double kFontBtn     = 17.0;  // button labels (used by an archived module)
 const double kFontDisplay = 26.0;  // large metric values (HRV, resting HR, VO₂)
 
 // ── Spacing ───────────────────────────────────────────────────────────────────

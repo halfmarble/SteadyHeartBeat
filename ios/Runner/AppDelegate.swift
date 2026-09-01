@@ -18,6 +18,17 @@ import AVFoundation
         try? AVAudioSession.sharedInstance().setActive(true, options: [])
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
 
+        // Dev-only: `-kokoroprobe` runs the Core ML background probe instead of
+        // the app. Never reachable for a real user — it requires a launch
+        // argument, which only a devicectl/Xcode launch can supply.
+        if ProcessInfo.processInfo.arguments.contains("-kokoroprobe") {
+            // asyncAfter, not inline: loading Kokoro inside didFinishLaunching
+            // trips the 20 s scene-create watchdog (0x8BADF00D).
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                KokoroBackgroundProbe.shared.start()
+            }
+        }
+
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
     }
 

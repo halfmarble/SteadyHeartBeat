@@ -329,3 +329,145 @@ final class NoGateEngineTests: XCTestCase {
         XCTAssertNil(e.exitCue("cooldown"))
     }
 }
+
+// MARK: - Kokoro Core ML compute units
+
+/// Pins the one Kokoro rule whose violation is SILENT: Core ML must never be
+/// allowed to schedule a segment on the GPU.
+///
+/// iOS refuses GPU work from a backgrounded app
+/// (`kIOGPUCommandBufferCallbackErrorBackgroundExecutionNotPermitted` — 80
+/// failures in 80 attempts, measured on device 2026-08-28). SteadyHeartBeat
+/// speaks *while backgrounded*, so a GPU-eligible segment is not a slow cue,
+/// it is a missing one — and nothing in a build, a launch, or a foreground
+/// test would show it. Upstream kokoro-swift ships `.all`, which permits
+/// Metal; the vendored copy asks for `.cpuAndNeuralEngine` / `.cpuOnly`
+/// instead. Background of the whole decision: `ios/Runner/Kokoro/VENDOR.md`.
+///
+/// **Why this reads source instead of calling the code.** Both compute-unit
+/// decisions sit inside methods that cannot run without the 234 MB of
+/// gitignored model segments, and `MLModelConfiguration.computeUnits` is not
+/// reachable from outside `SegmentedCoreMLModel` in any case. A scan is what
+/// is left — the same tactic `test/fda_copy_scan_test.dart` uses on the Dart
+/// side for a rule the type system cannot carry.
+///
+/// What it does NOT pin: which segments get the ANE and which get CPU-only.
+/// That mapping is a speed choice and may legitimately change. `.all` and
+/// `.cpuAndGPU` may not.
+final class KokoroComputeUnitsTests: XCTestCase {
+
+    /// The two `MLComputeUnits` cases that keep Metal out of the process.
+    private static let allowed: Set<String> = ["cpuOnly", "cpuAndNeuralEngine"]
+
+    /// Every case name, so the scan can tell "this RHS names a compute unit"
+    /// from "this RHS happens to contain a dot".
+    private static let everyCase: Set<String> = ["all", "cpuOnly", "cpuAndGPU", "cpuAndNeuralEngine"]
+
+    /// `ios/Runner/`, derived from this file's own compile-time path so the
+    /// scan follows whichever checkout or worktree the tests were built from.
+    private static var runnerSource: URL {
+        URL(fileURLWithPath: #filePath)      // ios/RunnerTests/RunnerTests.swift
+            .deletingLastPathComponent()     // ios/RunnerTests
+            .deletingLastPathComponent()     // ios
+            .appendingPathComponent("Runner")
+    }
+
+    private static func swiftSources() throws -> [(name: String, text: String)] {
+        guard let walker = FileManager.default.enumerator(
+            at: runnerSource, includingPropertiesForKeys: nil) else { return [] }
+        var out: [(name: String, text: String)] = []
+        for case let url as URL in walker where url.pathExtension == "swift" {
+            out.append((url.lastPathComponent, try String(contentsOf: url, encoding: .utf8)))
+        }
+        return out
+    }
+
+    /// The right-hand side of every `computeUnits = …`, to end of line.
+    private static func computeUnitAssignments(in text: String) -> [String] {
+        matches(#"computeUnits\s*=\s*(.+)"#, in: text)
+    }
+
+    /// Which `MLComputeUnits` cases a right-hand side can produce. A ternary
+    /// yields both of its arms, and both have to be allowed.
+    private static func casesNamed(in rhs: String) -> Set<String> {
+        Set(matches(#"\.([A-Za-z]+)"#, in: rhs).filter { everyCase.contains($0) })
+    }
+
+    private static func matches(_ pattern: String, in text: String) -> [String] {
+        let re = try! NSRegularExpression(pattern: pattern)
+        let ns = text as NSString
+        return re.matches(in: text, range: NSRange(location: 0, length: ns.length))
+            .map { ns.substring(with: $0.range(at: 1)) }
+    }
+
+    private static func count(_ pattern: String, in text: String) -> Int {
+        let re = try! NSRegularExpression(pattern: pattern)
+        return re.numberOfMatches(in: text, range: NSRange(location: 0, length: (text as NSString).length))
+    }
+
+    /// No `computeUnits` assignment anywhere under `ios/Runner/` may permit
+    /// the GPU.
+    func testNoComputeUnitsAssignmentPermitsTheGPU() throws {
+        let sources = try Self.swiftSources()
+        XCTAssertFalse(sources.isEmpty,
+                       "scanned nothing under \(Self.runnerSource.path) — this test would pass vacuously")
+
+        var checked = 0
+        for (name, text) in sources {
+            for rhs in Self.computeUnitAssignments(in: text) {
+                checked += 1
+                let named = Self.casesNamed(in: rhs)
+                XCTAssertFalse(named.isEmpty, """
+                    \(name): could not read an MLComputeUnits case out of \
+                    'computeUnits = \(rhs)'. If the value now comes from a \
+                    variable, this scan can no longer see it — pin it at the \
+                    definition instead of deleting the check.
+                    """)
+                for unit in named.sorted() {
+                    XCTAssertTrue(Self.allowed.contains(unit), """
+                        \(name): 'computeUnits = \(rhs)' permits .\(unit). \
+                        Only \(Self.allowed.sorted().map { ".\($0)" }.joined(separator: ", ")) \
+                        are allowed — .all and .cpuAndGPU let Core ML schedule on the GPU, \
+                        and iOS refuses GPU work from a backgrounded app. This app speaks \
+                        while backgrounded, so that is a silent cue mid-workout. \
+                        See ios/Runner/Kokoro/VENDOR.md.
+                        """)
+                }
+            }
+        }
+        XCTAssertGreaterThan(checked, 0,
+                             "found no computeUnits assignments at all — has the Core ML path moved?")
+    }
+
+    /// Guards the guard: if `SegmentedCoreMLModel.swift` is renamed, moved out
+    /// of `ios/Runner/`, or stops setting compute units, the scan above starts
+    /// checking nothing and would go green forever.
+    func testTheCoreMLModelIsActuallyBeingScanned() throws {
+        let sources = try Self.swiftSources()
+        guard let model = sources.first(where: { $0.name == "SegmentedCoreMLModel.swift" }) else {
+            return XCTFail("""
+                SegmentedCoreMLModel.swift is not under \(Self.runnerSource.path) — \
+                testNoComputeUnitsAssignmentPermitsTheGPU is checking nothing.
+                """)
+        }
+        XCTAssertFalse(Self.computeUnitAssignments(in: model.text).isEmpty, """
+            SegmentedCoreMLModel.swift sets no compute units. A bare \
+            MLModelConfiguration() defaults to .all, which permits the GPU.
+            """)
+    }
+
+    /// A configuration created and never assigned is the same bug wearing a
+    /// different hat: `MLModelConfiguration()` defaults to `.all`.
+    func testEveryModelConfigurationSetsItsComputeUnits() throws {
+        for (name, text) in try Self.swiftSources() {
+            let configurations = Self.count(#"MLModelConfiguration\s*\("#, in: text)
+            guard configurations > 0 else { continue }
+            let assignments = Self.computeUnitAssignments(in: text).count
+            XCTAssertGreaterThanOrEqual(assignments, configurations, """
+                \(name): \(configurations) MLModelConfiguration(s) but \(assignments) \
+                computeUnits assignment(s). One was left at the default, which is .all \
+                — GPU-eligible, and refused in the background.
+                """)
+        }
+    }
+}

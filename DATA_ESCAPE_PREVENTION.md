@@ -37,8 +37,7 @@ system crash diagnostics, the moment they choose to save to Apple Health).
 
 The guiding rule, from the halfmarble Data-Sovereignty principle: **the user owns
 their data and we are its steward, not its owner.** Escape is anything that moves
-data without the user's deliberate choice. (Note the corollary, expanded in
-[DATA_PORTABILITY.md](docs/DATA_PORTABILITY.md): a *deliberate* user choice to export
+data without the user's deliberate choice. (Note the corollary: a *deliberate* user choice to export
 their own data is **not** escape — it is the user exercising ownership.)
 
 ---
@@ -139,9 +138,8 @@ biometric outside a `kDebugMode` guard. Log the *event* ("session saved"), not t
 exactly one place: the user-initiated **Export My Data** action
 (`lib/services/export_service.dart`), which writes a plaintext copy of the user's own
 data to a temp file and presents the share sheet so they can take it off-device. This
-is intended, documented egress (the owner exercising ownership — see
-[DATA_PORTABILITY.md](docs/DATA_PORTABILITY.md) for why a deliberate export isn't an
-"escape"), not a leak. It fires only on the button tap and uploads nothing.
+is intended, documented egress (the owner exercising ownership — a deliberate
+export is not an "escape"), not a leak. It fires only on the button tap and uploads nothing.
 
 **What to check:** any *new* use of the share sheet must likewise be explicit and
 user-initiated, and `DATA_PRIVACY.md` must be updated in the same change (the export

@@ -52,3 +52,46 @@ else
     sed -i '' "s/kBuildNumber = '$CURRENT'/kBuildNumber = '$BUILD'/" "$FILE"
     echo "Synced build number: b$CURRENT -> b$BUILD (from pubspec)"
 fi
+
+# ---------------------------------------------------------------------------
+# ARM THE NEXT BUILD (2026-08-23, founder: "do the SteadyHeartBeat pubspec bump
+# phase too" — the same mechanism ViroFlick, StringFusor and DashTales use).
+#
+# AUTO-INCREMENT WAS HERE BEFORE AND WAS REMOVED FOR A REAL REASON, recorded in
+# the header above: it "drifted the display number one ahead of CFBundleVersion
+# on every build". That is a Flutter-specific hazard and it is worth naming
+# precisely, because getting it wrong again is easy — Dart is AOT-compiled
+# BEFORE this phase runs, so anything this script changes cannot reach the build
+# it runs in. A phase that bumped only the DISPLAY number therefore showed N+1
+# while CFBundleVersion stayed N, and a reinstall with an unchanged
+# CFBundleVersion is a silent no-op on device.
+#
+# The fix is to move BOTH numbers together, and to accept that they move for the
+# NEXT build rather than this one — which is exactly what the siblings' xcconfig
+# does, for the same underlying reason (an xcconfig is read at build start).
+#
+#   during this build   pubspec N   CFBundleVersion N   display N   consistent
+#   after this phase    pubspec N+1                     display N+1
+#   next build          pubspec N+1 CFBundleVersion N+1 display N+1 consistent
+#
+# ONLY FROM XCODE. Run standalone — which the header documents as the way to
+# make a hand-edited pubspec take effect — this must stay a pure sync, or
+# checking your work would silently cut a new build number every time.
+if [ -n "${SRCROOT:-}" ]; then
+    # A CI or release build that passes --build-number owns the number itself;
+    # bumping pubspec underneath it would fight the caller.
+    if [ -n "${FLUTTER_BUILD_NUMBER:-}" ] && [ "${FLUTTER_BUILD_NUMBER}" != "$BUILD" ]; then
+        echo "Build number supplied externally (b$FLUTTER_BUILD_NUMBER); leaving pubspec at b$BUILD"
+    else
+        NEXT=$((BUILD + 1))
+        sed -i '' "s/^version:\([[:space:]]*[0-9.]*\)+$BUILD$/version:\1+$NEXT/" "$PUBSPEC"
+        if grep -qE "^version:[[:space:]]*[0-9.]+\+$NEXT$" "$PUBSPEC"; then
+            # Move the display number WITH it, or the two drift by one — the
+            # exact failure that got the old auto-increment removed.
+            sed -i '' "s/kBuildNumber = '$BUILD'/kBuildNumber = '$NEXT'/" "$FILE"
+            echo "Armed the next build: b$NEXT (pubspec and build_info together)"
+        else
+            echo "warning: could not advance $PUBSPEC; the next build would repeat b$BUILD" >&2
+        fi
+    fi
+fi

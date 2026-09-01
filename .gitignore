@@ -60,3 +60,12 @@ GEMINI.md
 
 # Local working docs — kept out of the public repo.
 /docs/
+
+# Kokoro Core ML weights + voices (234 MB) — built by ios/get-kokoro-coreml.sh.
+# MUST mirror the same rules in -closed/.gitignore. Without them the weights are
+# untracked-but-not-ignored in -open, and one `git add` of the asset directory
+# commits a quarter-gigabyte of regenerable model data into a public repo.
+ios/Runner/KokoroAssets/*
+# ...except the pre-rendered clips: 5.2 MB, and they ARE the app's voice. A
+# clone without them cannot speak, so they are product, not a regenerable render.
+!ios/Runner/KokoroAssets/KokoroClips/

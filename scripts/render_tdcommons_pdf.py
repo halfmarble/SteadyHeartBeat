@@ -6,14 +6,12 @@ patents/ builder house style (12pt Times, 1.5 line spacing, Letter portrait).
 
 Before rendering it strips the leading **submission-note blockquote** (the
 `> Prepared for submission ... / DRAFT / Posted ...` block right after the
-`**Author:**` line) so the uploaded PDF carries no internal note — exactly what
-`docs/tdcommons/SUBMISSION_GUIDE.md` says to do before upload.
+`**Author:**` line), so the uploaded PDF carries no internal preparation note.
 
 Usage:
-    python3 scripts/render_tdcommons_pdf.py docs/PRIOR_ART_FOO_TDCOMMONS.md foo_tdcommons.pdf
+    python3 scripts/render_tdcommons_pdf.py PRIOR_ART_FOO.md foo_tdcommons.pdf
 
-The PDF is written into docs/tdcommons/<output-name>. macOS-only (hardcoded
-Chrome path, same as the patents builder).
+macOS-only (hardcoded Chrome path, same as the patents builder).
 """
 import re
 import subprocess

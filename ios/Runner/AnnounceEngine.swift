@@ -28,6 +28,11 @@ final class AnnounceEngine {
     /// en-US voice while the picker reports the user's choice).
     var voiceProvider: () -> AVSpeechSynthesisVoice? = { nil }
 
+    /// Which Kokoro voice to speak in. Separate from `voiceProvider` because
+    /// the two tiers have disjoint voice namespaces — a system voice
+    /// identifier means nothing to Kokoro and vice versa.
+    var kokoroVoiceProvider: () -> String = { Corpus.defaultVoice }
+
     /// Enriches a bare BPM number with zone coaching ("142, zone 4" + an
     /// optional amplified "push"/"ease off" nudge). Composition happens at
     /// RENDER time — a BPM that waited in the queue is composed against the
@@ -48,6 +53,57 @@ final class AnnounceEngine {
     // TTS synthesizer — used ONLY to RENDER speech to PCM via
     // write(_:toBufferCallback:), never speak() (see the header note).
     private let _synth = AVSpeechSynthesizer()
+
+    // Kokoro renders off the main thread; utility QoS because a cue that is
+    // late is still spoken, and this runs during a workout alongside HealthKit.
+    private let _kokoroQueue = DispatchQueue(label: "shb.kokoro.render", qos: .userInitiated)
+
+    /// Kokoro, once loaded. READ-ONLY and non-blocking: a nil here means "not
+    /// ready", and the caller speaks in the system voice instead of waiting.
+    ///
+    /// This was a `static let` until 2026-08-28, which was a latent bug with a
+    /// 20-second fuse. A lazy static initialises on whatever thread first
+    /// touches it — for AnnounceEngine that is `_render`, on the main thread,
+    /// mid-workout. And the first load is not cheap: Core ML runs an on-device
+    /// Espresso AOT compile to segment the model across ANE and CPU, which
+    /// killed the app at launch with 0x8BADF00D ("scene-create watchdog
+    /// transgression: exhausted real (wall clock) time allowance of 19.75
+    /// seconds") on thread MLE5ProgramLibrary.lazyInitQueue. Precompiling to
+    /// .mlmodelc at build time does NOT avoid it — that compile is per-device.
+    /// Pre-rendered clips. Cheap to construct (a JSON index; the audio is
+    /// loaded lazily per clip), so unlike `kokoro` this one is safe as a lazy
+    /// static — there is no Core ML compile behind it.
+    static let clips: KokoroClips? = KokoroClips()
+
+    private(set) static var kokoro: KokoroTTS?
+    private static var kokoroLoading = false
+    private static var kokoroLoadMs: Double?
+
+    /// Load Kokoro off the main thread. Safe to call more than once; safe to
+    /// call and ignore. Call it well before the first cue — starting a workout
+    /// is the natural moment — never from `application(_:didFinishLaunching…)`.
+    @discardableResult
+    static func prepareKokoro(_ completion: ((KokoroTTS?) -> Void)? = nil) -> Bool {
+        if let ready = kokoro { completion?(ready); return true }
+        guard !kokoroLoading else { completion?(nil); return false }
+        kokoroLoading = true
+        DispatchQueue.global(qos: .utility).async {
+            let started = CFAbsoluteTimeGetCurrent()
+            let loaded = KokoroTTS()
+            let ms = (CFAbsoluteTimeGetCurrent() - started) * 1000
+            DispatchQueue.main.async {
+                kokoro = loaded
+                kokoroLoading = false
+                kokoroLoadMs = ms
+                NSLog("[kokoro] load %@ in %.0f ms", loaded == nil ? "FAILED" : "ok", ms)
+                completion?(loaded)
+            }
+        }
+        return false
+    }
+
+    /// How long the one-time load took, once it has happened.
+    static var kokoroLoadMilliseconds: Double? { kokoroLoadMs }
 
     private let _engine = AVAudioEngine()
     private let _ttsPlayer = AVAudioPlayerNode()
@@ -285,10 +341,93 @@ final class AnnounceEngine {
         return u
     }
 
-    // Render an utterance to PCM in-process; calls done (on main) with the
-    // buffers. The callback receives successive buffers, then one with
-    // frameLength 0 to signal completion. Render serially — one write at a time.
+    // Render a cue to PCM. Kokoro (Core ML, CPU + ANE) is the primary voice;
+    // AVSpeechSynthesizer.write is the fallback and stays byte-for-byte the
+    // path it always was. Both hand back buffers on the main thread, so
+    // everything downstream — bell, gap, amplify, duck, play — is unchanged.
+    //
+    // The utterance is still the unit of work even on the Kokoro path: it
+    // already carries the text and the rate the caller chose, and building one
+    // costs nothing if Kokoro answers.
     private func _render(_ utt: AVSpeechUtterance, _ done: @escaping ([AVAudioPCMBuffer]) -> Void) {
+        // Tier 1: pre-rendered Kokoro. Instant, background-safe, and the same
+        // voice as tier 2 because it came off the same weights. Covers the
+        // whole closed vocabulary this app actually speaks.
+        if let clips = AnnounceEngine.clips,
+           let buffers = clips.buffers(for: utt.speechString) {
+            DispatchQueue.main.async { done(buffers) }
+            return
+        }
+        // Tier 2: live Kokoro, for anything outside the corpus — only if it has
+        // finished its one-time Core ML compile.
+        if let tts = AnnounceEngine.kokoro {
+            _renderKokoro(tts, utt, done)
+            return
+        }
+        // Not warm yet: speak this cue in the system voice and start the load
+        // in the background. Never wait — the first load runs an on-device ANE
+        // compile measured in tens of seconds, and a workout cue cannot block
+        // on it. Kokoro takes over from the cue after it finishes loading.
+        AnnounceEngine.prepareKokoro()
+        _renderWithAVSpeech(utt, done)
+    }
+
+    /// Kokoro-82M through Core ML, off the main thread.
+    ///
+    /// A failure here falls back to the system voice rather than dropping the
+    /// cue — a workout that says nothing is worse than a workout that says it
+    /// in the wrong voice.
+    private func _renderKokoro(
+        _ tts: KokoroTTS,
+        _ utt: AVSpeechUtterance,
+        _ done: @escaping ([AVAudioPCMBuffer]) -> Void
+    ) {
+        let text = utt.speechString
+        // AVSpeech rate 0.5 is "normal"; Kokoro speed 1.0 is. The two cue rates
+        // in use (0.48 lead, 0.40 nudge) map to 0.96 and 0.80.
+        let speed = max(0.5, min(1.5, utt.rate / 0.5))
+        let voice = kokoroVoiceProvider()
+        _kokoroQueue.async { [weak self] in
+            guard let self = self else { return }
+            var rendered: AVAudioPCMBuffer?
+            do {
+                let samples = try tts.synthesize(text: text, voice: voice, speed: speed)
+                rendered = Self.makeBuffer(samples: samples,
+                                           sampleRate: Double(KokoroTTS.sampleRate))
+            } catch {
+                NSLog("[kokoro] render failed (%@) — falling back to system voice",
+                      error.localizedDescription)
+            }
+            DispatchQueue.main.async {
+                if let buffer = rendered, buffer.frameLength > 0 {
+                    done([buffer])
+                } else {
+                    self._renderWithAVSpeech(utt, done)
+                }
+            }
+        }
+    }
+
+    /// [Float] at 24 kHz -> one mono float32 buffer. _playDucked already
+    /// reconnects the player to whatever format arrives, so no resampling here.
+    private static func makeBuffer(samples: [Float], sampleRate: Double) -> AVAudioPCMBuffer? {
+        guard !samples.isEmpty,
+              let format = AVAudioFormat(commonFormat: .pcmFormatFloat32,
+                                         sampleRate: sampleRate,
+                                         channels: 1,
+                                         interleaved: false),
+              let buffer = AVAudioPCMBuffer(pcmFormat: format,
+                                            frameCapacity: AVAudioFrameCount(samples.count)),
+              let channel = buffer.floatChannelData?[0] else { return nil }
+        buffer.frameLength = AVAudioFrameCount(samples.count)
+        samples.withUnsafeBufferPointer { src in
+            channel.update(from: src.baseAddress!, count: samples.count)
+        }
+        return buffer
+    }
+
+    // The original in-process AVSpeech render, unchanged.
+    private func _renderWithAVSpeech(_ utt: AVSpeechUtterance, _ done: @escaping ([AVAudioPCMBuffer]) -> Void) {
         var buffers: [AVAudioPCMBuffer] = []
         var finished = false
         _synth.write(utt) { buf in

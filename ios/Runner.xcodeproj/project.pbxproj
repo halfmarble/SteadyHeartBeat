@@ -7,21 +7,43 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0CF7DF41621B4E065F4DE032 /* KokoroVoices in Resources */ = {isa = PBXBuildFile; fileRef = DB9219093108718FBD0EFD10 /* KokoroVoices */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
+		19CB95D328AB57F80F8DF412 /* text_encoder.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = 1B30D477B1119BCC2C21DAE5 /* text_encoder.mlpackage */; };
+		1ED2ABC9CAFC8DCA7D34A964 /* KokoroClips.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC821DB560B8E873A4A549F /* KokoroClips.swift */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
+		4541B1D63CD63C91CF11A8EC /* albert.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = 07D90E0B9838E43654EE18B6 /* albert.mlpackage */; };
+		4732E7A033204C044B254F5F /* Lexicon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9503F3C3CA0AC3E1E77D698A /* Lexicon.swift */; };
+		5711D70C6475E9F189936756 /* us_silver.json in Resources */ = {isa = PBXBuildFile; fileRef = EE3F2421444A2148A0F5B7B8 /* us_silver.json */; };
+		58161BC060E8BC7748E6C5B3 /* EnglishG2P.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34E8F83912ABFA972F3D1578 /* EnglishG2P.swift */; };
+		5B91573AB2702B4C3A6A125B /* prosody.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = 7231FCA811D8B4FCFAD237F5 /* prosody.mlpackage */; };
+		5CAB7F19CA69B124E533E7F1 /* KokoroVoices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A5F58ED446E4F182ED71E55 /* KokoroVoices.swift */; };
+		6AAF67A099244D0F2FFF6FC7 /* SegmentedCoreMLModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E0811F023B16302B4D52BD2 /* SegmentedCoreMLModel.swift */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
 		7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */; };
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
+		823040A36CBE34712DCB0B73 /* kokoro_config.json in Resources */ = {isa = PBXBuildFile; fileRef = 037B37BE491807CE9D5199DB /* kokoro_config.json */; };
+		83D8AA55269C7FAC50A947C3 /* MToken.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EDFFB19629B76B750939999 /* MToken.swift */; };
+		84B17825FADC12FACF230C9D /* Corpus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41A2302A8D3ADA2DB9A3525B /* Corpus.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		A297C534F3064934E3DFED33 /* us_gold.json in Resources */ = {isa = PBXBuildFile; fileRef = 9CEBF0A4DDE5A3014B4A4389 /* us_gold.json */; };
+		A39A27D32CA2761566AC1E56 /* decoder.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = 65448D5767B5F83CDB044292 /* decoder.mlpackage */; };
+		A9DFE502AEE46AA1C71BECC3 /* gb_silver.json in Resources */ = {isa = PBXBuildFile; fileRef = BFC47C8889B4C253406201B1 /* gb_silver.json */; };
 		AA000001AA000001AA000001 /* WorkoutManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002AA000002AA000002 /* WorkoutManager.swift */; };
-		AA000007AA000007AA000007 /* HealthHistoryRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000008AA000008AA000008 /* HealthHistoryRepository.swift */; };
-		AA000009AA000009AA000009 /* AnnounceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000AAA00000AAA00000A /* AnnounceEngine.swift */; };
 		AA000003AA000003AA000003 /* GateEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000004AA000004AA000004 /* GateEngine.swift */; };
 		AA000005AA000005AA000005 /* StoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000006AA000006AA000006 /* StoreManager.swift */; };
+		AA000007AA000007AA000007 /* HealthHistoryRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000008AA000008AA000008 /* HealthHistoryRepository.swift */; };
+		AA000009AA000009AA000009 /* AnnounceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000AAA00000AAA00000A /* AnnounceEngine.swift */; };
+		B15D8DCB9B536E5E9D3FCEF7 /* gb_gold.json in Resources */ = {isa = PBXBuildFile; fileRef = F4DDFB92CFDA6B14C6899459 /* gb_gold.json */; };
+		B5555445150F9692C0493E87 /* KokoroClips in Resources */ = {isa = PBXBuildFile; fileRef = 690DC6B0FEE600843CA77AD3 /* KokoroClips */; };
 		BB000001BB000001BB000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BB000002BB000002BB000002 /* PrivacyInfo.xcprivacy */; };
+		DB85D08F6EDAEC640232E133 /* KokoroBackgroundProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 006BCDF20EF82836A2326D57 /* KokoroBackgroundProbe.swift */; };
+		E764EE5E89CB1BF3F97DDB26 /* KokoroConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADE32CEE1928B5DFD0221D97 /* KokoroConfig.swift */; };
+		E84FAAAB32161F882252B0A7 /* NumberToWords.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF4A2A9C789B06E78552935D /* NumberToWords.swift */; };
+		EB845C314F46B432A9CB24CF /* KokoroTTS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D0D810FCBD74236FB37184B /* KokoroTTS.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -48,16 +70,30 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		006BCDF20EF82836A2326D57 /* KokoroBackgroundProbe.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KokoroBackgroundProbe.swift; sourceTree = "<group>"; };
+		037B37BE491807CE9D5199DB /* kokoro_config.json */ = {isa = PBXFileReference; includeInIndex = 1; path = kokoro_config.json; sourceTree = "<group>"; };
+		07D90E0B9838E43654EE18B6 /* albert.mlpackage */ = {isa = PBXFileReference; includeInIndex = 1; path = albert.mlpackage; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
+		1A5F58ED446E4F182ED71E55 /* KokoroVoices.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KokoroVoices.swift; sourceTree = "<group>"; };
+		1B30D477B1119BCC2C21DAE5 /* text_encoder.mlpackage */ = {isa = PBXFileReference; includeInIndex = 1; path = text_encoder.mlpackage; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		34E8F83912ABFA972F3D1578 /* EnglishG2P.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EnglishG2P.swift; sourceTree = "<group>"; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
+		41A2302A8D3ADA2DB9A3525B /* Corpus.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Corpus.swift; sourceTree = "<group>"; };
+		4D0D810FCBD74236FB37184B /* KokoroTTS.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KokoroTTS.swift; sourceTree = "<group>"; };
+		65448D5767B5F83CDB044292 /* decoder.mlpackage */ = {isa = PBXFileReference; includeInIndex = 1; path = decoder.mlpackage; sourceTree = "<group>"; };
+		690DC6B0FEE600843CA77AD3 /* KokoroClips */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; path = KokoroClips; sourceTree = "<group>"; };
+		6EDFFB19629B76B750939999 /* MToken.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MToken.swift; sourceTree = "<group>"; };
+		7231FCA811D8B4FCFAD237F5 /* prosody.mlpackage */ = {isa = PBXFileReference; includeInIndex = 1; path = prosody.mlpackage; sourceTree = "<group>"; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		78E0A7A72DC9AD7400C4905E /* FlutterGeneratedPluginSwiftPackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlutterGeneratedPluginSwiftPackage; path = Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
+		7E0811F023B16302B4D52BD2 /* SegmentedCoreMLModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SegmentedCoreMLModel.swift; sourceTree = "<group>"; };
+		9503F3C3CA0AC3E1E77D698A /* Lexicon.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Lexicon.swift; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Flutter/Debug.xcconfig; sourceTree = "<group>"; };
 		9740EEB31CF90195004384FC /* Generated.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Generated.xcconfig; path = Flutter/Generated.xcconfig; sourceTree = "<group>"; };
 		97C146EE1CF9000F007C117D /* Runner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Runner.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -65,13 +101,21 @@
 		97C146FD1CF9000F007C117D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		9CEBF0A4DDE5A3014B4A4389 /* us_gold.json */ = {isa = PBXFileReference; includeInIndex = 1; path = us_gold.json; sourceTree = "<group>"; };
 		AA000002AA000002AA000002 /* WorkoutManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutManager.swift; sourceTree = "<group>"; };
-		AA000008AA000008AA000008 /* HealthHistoryRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthHistoryRepository.swift; sourceTree = "<group>"; };
-		AA00000AAA00000AAA00000A /* AnnounceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnounceEngine.swift; sourceTree = "<group>"; };
 		AA000004AA000004AA000004 /* GateEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GateEngine.swift; path = Plus/GateEngine.swift; sourceTree = "<group>"; };
 		AA000006AA000006AA000006 /* StoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreManager.swift; sourceTree = "<group>"; };
+		AA000008AA000008AA000008 /* HealthHistoryRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthHistoryRepository.swift; sourceTree = "<group>"; };
+		AA00000AAA00000AAA00000A /* AnnounceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnounceEngine.swift; sourceTree = "<group>"; };
+		ABC821DB560B8E873A4A549F /* KokoroClips.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KokoroClips.swift; sourceTree = "<group>"; };
+		ADE32CEE1928B5DFD0221D97 /* KokoroConfig.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KokoroConfig.swift; sourceTree = "<group>"; };
+		AF4A2A9C789B06E78552935D /* NumberToWords.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NumberToWords.swift; sourceTree = "<group>"; };
 		BB000002BB000002BB000002 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		BFC47C8889B4C253406201B1 /* gb_silver.json */ = {isa = PBXFileReference; includeInIndex = 1; path = gb_silver.json; sourceTree = "<group>"; };
 		D5F5DC1A2FC4E2D1008F19E9 /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
+		DB9219093108718FBD0EFD10 /* KokoroVoices */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; path = KokoroVoices; sourceTree = "<group>"; };
+		EE3F2421444A2148A0F5B7B8 /* us_silver.json */ = {isa = PBXFileReference; includeInIndex = 1; path = us_silver.json; sourceTree = "<group>"; };
+		F4DDFB92CFDA6B14C6899459 /* gb_gold.json */ = {isa = PBXFileReference; includeInIndex = 1; path = gb_gold.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,11 +145,39 @@
 			path = RunnerTests;
 			sourceTree = "<group>";
 		};
+		3D7087EABFD1DC94C29F7B34 /* Kokoro */ = {
+			isa = PBXGroup;
+			children = (
+				7AF61140D4E2819257F1AA24 /* Misaki */,
+				ADE32CEE1928B5DFD0221D97 /* KokoroConfig.swift */,
+				4D0D810FCBD74236FB37184B /* KokoroTTS.swift */,
+				1A5F58ED446E4F182ED71E55 /* KokoroVoices.swift */,
+				7E0811F023B16302B4D52BD2 /* SegmentedCoreMLModel.swift */,
+				006BCDF20EF82836A2326D57 /* KokoroBackgroundProbe.swift */,
+				ABC821DB560B8E873A4A549F /* KokoroClips.swift */,
+				41A2302A8D3ADA2DB9A3525B /* Corpus.swift */,
+			);
+			name = Kokoro;
+			path = Kokoro;
+			sourceTree = "<group>";
+		};
 		6E801ABD0D8183220C03365A /* Pods */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			path = Pods;
+			sourceTree = "<group>";
+		};
+		7AF61140D4E2819257F1AA24 /* Misaki */ = {
+			isa = PBXGroup;
+			children = (
+				34E8F83912ABFA972F3D1578 /* EnglishG2P.swift */,
+				9503F3C3CA0AC3E1E77D698A /* Lexicon.swift */,
+				6EDFFB19629B76B750939999 /* MToken.swift */,
+				AF4A2A9C789B06E78552935D /* NumberToWords.swift */,
+			);
+			name = Misaki;
+			path = Misaki;
 			sourceTree = "<group>";
 		};
 		9740EEB11CF90186004384FC /* Flutter */ = {
@@ -159,8 +231,29 @@
 				AA000006AA000006AA000006 /* StoreManager.swift */,
 				AA000004AA000004AA000004 /* GateEngine.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
+				3D7087EABFD1DC94C29F7B34 /* Kokoro */,
+				AEB74F0B5C7D23DCCC9645E7 /* KokoroAssets */,
 			);
 			path = Runner;
+			sourceTree = "<group>";
+		};
+		AEB74F0B5C7D23DCCC9645E7 /* KokoroAssets */ = {
+			isa = PBXGroup;
+			children = (
+				07D90E0B9838E43654EE18B6 /* albert.mlpackage */,
+				65448D5767B5F83CDB044292 /* decoder.mlpackage */,
+				7231FCA811D8B4FCFAD237F5 /* prosody.mlpackage */,
+				1B30D477B1119BCC2C21DAE5 /* text_encoder.mlpackage */,
+				037B37BE491807CE9D5199DB /* kokoro_config.json */,
+				9CEBF0A4DDE5A3014B4A4389 /* us_gold.json */,
+				EE3F2421444A2148A0F5B7B8 /* us_silver.json */,
+				F4DDFB92CFDA6B14C6899459 /* gb_gold.json */,
+				BFC47C8889B4C253406201B1 /* gb_silver.json */,
+				DB9219093108718FBD0EFD10 /* KokoroVoices */,
+				690DC6B0FEE600843CA77AD3 /* KokoroClips */,
+			);
+			name = KokoroAssets;
+			path = KokoroAssets;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -188,13 +281,13 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 97C147051CF9000F007C117D /* Build configuration list for PBXNativeTarget "Runner" */;
 			buildPhases = (
-				B011DBA1F1A2B3C4D5E6F0A1 /* Bump build number */,
 				9740EEB61CF901F6004384FC /* Run Script */,
 				97C146EA1CF9000F007C117D /* Sources */,
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
+				B011DBA1F1A2B3C4D5E6F0A1 /* Bump build number */,
 			);
 			buildRules = (
 			);
@@ -238,7 +331,7 @@
 			);
 			mainGroup = 97C146E51CF9000F007C117D;
 			packageReferences = (
-				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage" */,
+				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */,
 			);
 			productRefGroup = 97C146EF1CF9000F007C117D /* Products */;
 			projectDirPath = "";
@@ -267,6 +360,17 @@
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
 				BB000001BB000001BB000001 /* PrivacyInfo.xcprivacy in Resources */,
+				4541B1D63CD63C91CF11A8EC /* albert.mlpackage in Resources */,
+				A39A27D32CA2761566AC1E56 /* decoder.mlpackage in Resources */,
+				5B91573AB2702B4C3A6A125B /* prosody.mlpackage in Resources */,
+				19CB95D328AB57F80F8DF412 /* text_encoder.mlpackage in Resources */,
+				823040A36CBE34712DCB0B73 /* kokoro_config.json in Resources */,
+				A297C534F3064934E3DFED33 /* us_gold.json in Resources */,
+				5711D70C6475E9F189936756 /* us_silver.json in Resources */,
+				B15D8DCB9B536E5E9D3FCEF7 /* gb_gold.json in Resources */,
+				A9DFE502AEE46AA1C71BECC3 /* gb_silver.json in Resources */,
+				0CF7DF41621B4E065F4DE032 /* KokoroVoices in Resources */,
+				B5555445150F9692C0493E87 /* KokoroClips in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -342,6 +446,17 @@
 				AA000009AA000009AA000009 /* AnnounceEngine.swift in Sources */,
 				AA000005AA000005AA000005 /* StoreManager.swift in Sources */,
 				AA000003AA000003AA000003 /* GateEngine.swift in Sources */,
+				E764EE5E89CB1BF3F97DDB26 /* KokoroConfig.swift in Sources */,
+				EB845C314F46B432A9CB24CF /* KokoroTTS.swift in Sources */,
+				5CAB7F19CA69B124E533E7F1 /* KokoroVoices.swift in Sources */,
+				6AAF67A099244D0F2FFF6FC7 /* SegmentedCoreMLModel.swift in Sources */,
+				58161BC060E8BC7748E6C5B3 /* EnglishG2P.swift in Sources */,
+				4732E7A033204C044B254F5F /* Lexicon.swift in Sources */,
+				83D8AA55269C7FAC50A947C3 /* MToken.swift in Sources */,
+				E84FAAAB32161F882252B0A7 /* NumberToWords.swift in Sources */,
+				DB85D08F6EDAEC640232E133 /* KokoroBackgroundProbe.swift in Sources */,
+				1ED2ABC9CAFC8DCA7D34A964 /* KokoroClips.swift in Sources */,
+				84B17825FADC12FACF230C9D /* Corpus.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -434,6 +549,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
+				COREML_CODEGEN_LANGUAGE = None;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = 8D2BG3498Y;
 				ENABLE_BITCODE = NO;
@@ -616,6 +732,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
+				COREML_CODEGEN_LANGUAGE = None;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = 8D2BG3498Y;
 				ENABLE_BITCODE = NO;
@@ -641,6 +758,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
+				COREML_CODEGEN_LANGUAGE = None;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = 8D2BG3498Y;
 				ENABLE_BITCODE = NO;
@@ -694,7 +812,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage" */ = {
+		781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage;
 		};

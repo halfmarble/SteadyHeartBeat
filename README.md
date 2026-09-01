@@ -12,7 +12,7 @@ Built by [Halfmarble LLC](https://halfmarble.com) as a proof of concept for ambi
 
 ## What it does
 
-- **Voice announcements** — current BPM announced at a configurable interval (continuous / 2s / 5s / 15s / 30s / 1 min) and immediately when HR changes by a configurable threshold (±3 / ±5 / ±8 / ±10 BPM). Both triggers use independent baselines so interval announcements never suppress drift detection.
+- **Voice announcements** — current BPM announced at a configurable interval (continuous / 2s / 5s / 15s / 30s / 1 min) and immediately when HR changes by a configurable threshold (±3 / ±5 / ±8 / ±10 BPM). Both triggers use independent baselines so interval announcements never suppress drift detection. Spoken by an on-device neural voice — see [The voice](#the-voice).
 - **Live chart** — full-session HR history, chart fills the screen, auto-scales to the session's HR range. Chart time axis is at least 15 minutes and grows as the session continues.
 - **5-zone color gradient** — the HR line is colored green (Zone 1 recovery) → chartreuse (Zone 2 fat burn) → yellow (Zone 3 aerobic) → deep orange (Zone 4 anaerobic) → red (Zone 5 maximum effort), with quadratic easing in the warning zone. Zone boundaries are computed automatically from your date of birth via the Tanaka formula (maxHR = 208 − 0.7 × age) read from Apple Health.
 - **Zone coaching** — optionally name your training zone in each announcement ("142, zone 4"), and with a target zone set, append a steering nudge — "push" when you're below it, "ease off" when above. Composed on-device in the native layer so it keeps coaching while backgrounded with the screen off. Requires heart-rate zones (age or date of birth configured); falls back to the bare number otherwise.
@@ -56,9 +56,13 @@ Requires **AirPods with heart rate monitoring** (AirPods Pro 3 or later) and iOS
 
 ---
 
-## Recommended: install a premium voice
+## The voice
 
-For the clearest spoken readout, install Apple's **Ava (Premium)** voice before your first workout: **Settings → Accessibility → Spoken Content → Voices → English → Ava**, then choose the **Premium** quality (one-time download). SteadyHeartBeat automatically prefers the highest-quality installed voice (premium → enhanced → default), and you can also pick it explicitly in **Preferences → Voice & announcements → Voice**. Without a premium voice the app falls back to the standard system voice, which sounds noticeably more robotic.
+Announcements are spoken by **Kokoro-82M** — an open-weight neural text-to-speech model (Apache-2.0, built on StyleTTS 2) that runs entirely on the iPhone. Nothing to download, nothing to configure, no network at any point.
+
+What the app can say is a closed set — a heart rate, a training zone, a nudge, a round number, and a handful of fixed phrases — so it ships **pre-rendered** in that voice as ~5 MB of audio. The renderer is in the repo: `scripts/kokocli.swift -corpus` regenerates the whole set from the same weights the live tier uses (build instructions are in its header; note that Core ML synthesis is not run-to-run deterministic, so a re-render is equivalent, not identical). Anything outside that set is synthesized live on-device through Core ML (CPU and Neural Engine only — iOS will not run GPU work from a backgrounded app, and this app speaks while backgrounded).
+
+Apple's own `AVSpeechSynthesizer` remains as a fallback for the rare case where a neural render fails; the **Preferences → Voice & announcements → Voice** picker chooses which system voice that fallback uses.
 
 ---
 
@@ -83,7 +87,7 @@ AirPods Pro 3 optical sensor
    ┌────┴──────────────────────┐
    │                           │
 Voice TTS                  Live chart
-(AVSpeechSynthesizer)      + overlay
+(Kokoro, on-device)        + overlay
    │                           │
    └─────────AirPods───────────┘
          (same device)
@@ -117,7 +121,7 @@ These are deliberately **independent** decisions. A change to one does not affec
    Publishing them as prior art keeps them freely practicable by anyone and prevents third parties
    from patenting them. That is their only purpose — they do **not** give away the source code or
    the application.
-2. **Code license.** The *source code* is governed separately by **[LICENSE](LICENSE)**, and may be relicensed in future without affecting the prior-art dedication above.
+2. **Code license.** The *source code* is governed separately by **[LICENSE](LICENSE)** (Apache 2.0), and may be relicensed in future without affecting the prior-art dedication above. Third-party components — the Kokoro-82M voice and the Swift code vendored with it — are attributed in **[NOTICE](NOTICE)**.
 3. **The application.** *SteadyHeartBeat the product* — its distribution, pricing, and availability — is a halfmarble product decision, independent of the two layers above.
 
 So: the **ideas** are public-domain prior art, the **code** has its own license, and the **app** is a product. Publishing the prior art secures the defensive goal (unpatentability) **without** requiring the app to be free or the code to be open.
@@ -130,6 +134,14 @@ Requires a physical iPhone (HealthKit and HKWorkoutSession are unavailable in Si
 
 ```bash
 flutter pub get
+
+# Builds the Kokoro Core ML weights + voice packs into ios/Runner/KokoroAssets/
+# (234 MB, gitignored). Run this once per clone — the Xcode project references
+# those paths and the build fails without them. The pre-rendered clips are in
+# the repo already, so the app has its voice either way; this is the live
+# synthesis tier.
+ios/get-kokoro-coreml.sh
+
 flutter run --device-id <your-device-id> --release
 ```
 
@@ -154,7 +166,7 @@ All processing is on-device — halfmarble never receives your data, and nothing
 
 The one exception is **Apple Health**: by default each finished workout is saved there for your Activity rings, after which it follows your own iCloud Health sync settings. You can turn that off in Preferences (**Apple Health → Save workouts to Apple Health**), and the workout will stay on this device only.
 
-**Your data is yours — locked in is not the goal.** Protecting data this aggressively has a failure mode: it can lock out the owner too. So **Preferences → Your Data** gives you two unconditional actions: **Export My Data** — a complete, readable copy of everything the app stores (sessions and health profile), handed over through the system share sheet to a destination you choose — and **Delete All Data**, which erases it from the device. The export sheet also offers **Anonymize for Research…**, which produces a de-identified copy (random IDs, identity and absolute timestamps stripped) if you choose to donate it. Nothing uploads anywhere; both paths end at the share sheet. The full reasoning — including why a readable export is *more* respectful of ownership than an encrypted one — is in [docs/DATA_PORTABILITY.md](docs/DATA_PORTABILITY.md).
+**Your data is yours — locked in is not the goal.** Protecting data this aggressively has a failure mode: it can lock out the owner too. So **Preferences → Your Data** gives you two unconditional actions: **Export My Data** — a complete, readable copy of everything the app stores (sessions and health profile), handed over through the system share sheet to a destination you choose — and **Delete All Data**, which erases it from the device. The export sheet also offers **Anonymize for Research…**, which produces a de-identified copy (random IDs, identity and absolute timestamps stripped) if you choose to donate it. Nothing uploads anywhere; both paths end at the share sheet. A readable export is deliberate: an encrypted one would protect the data from its owner as much as from anyone else, which is the opposite of stewardship.
 
 For a complete breakdown of every way data could leave the device and how each is handled — verifiable against the code — see **[DATA_PRIVACY.md](DATA_PRIVACY.md)**. The full privacy policy is at [halfmarble.com/steadyheartbeat/privacy.html](https://halfmarble.com/steadyheartbeat/privacy.html).
 

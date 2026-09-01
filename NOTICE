@@ -1,0 +1,65 @@
+SteadyHeartBeat
+Copyright 2026 Halfmarble LLC
+
+This product includes software developed by third parties, listed below. The
+repository's LICENSE (Apache License 2.0) applies to Halfmarble LLC's own work;
+the components below are the copyright of their respective authors and are
+included under their own licenses, which are compatible with it.
+
+--------------------------------------------------------------------------------
+Kokoro-82M
+    Author:   hexgrad
+    License:  Apache License 2.0
+    Source:   https://huggingface.co/hexgrad/Kokoro-82M
+
+    The neural text-to-speech model that produces this app's announce voice.
+    Built on StyleTTS 2 (Li et al., MIT License, https://github.com/yl4579/StyleTTS2).
+
+    The model weights are NOT redistributed in this repository — they are 234 MB
+    and gitignored, fetched and converted by ios/get-kokoro-coreml.sh. What IS
+    redistributed is ios/Runner/KokoroAssets/KokoroClips/: 427 audio clips that
+    are OUTPUT of the model, rendered by scripts/kokocli.swift.
+
+--------------------------------------------------------------------------------
+kokoro-swift
+    Author:   Max Weinbach (github.com/mweinbach)
+    License:  Apache License 2.0
+    Source:   https://github.com/mweinbach/kokoro-swift
+
+    Swift inference for Kokoro-82M. Only the Core ML half is vendored here, in
+    ios/Runner/Kokoro/ — the MLX/Metal backend is deliberately left behind (see
+    ios/Runner/Kokoro/VENDOR.md for why, and for every change made).
+
+    Files derived from this work, and MODIFIED by Halfmarble LLC:
+        ios/Runner/Kokoro/SegmentedCoreMLModel.swift
+        ios/Runner/Kokoro/KokoroConfig.swift
+        ios/Runner/Kokoro/Misaki/Lexicon.swift
+
+    Files derived from this work and included unchanged:
+        ios/Runner/Kokoro/Misaki/EnglishG2P.swift
+        ios/Runner/Kokoro/Misaki/MToken.swift
+        ios/Runner/Kokoro/Misaki/NumberToWords.swift
+
+    Files written by Halfmarble LLC to replace upstream types that could not be
+    used without linking MLX (KPipeline, VoiceLoader, CoreMLVoiceAdapter), and
+    which follow upstream's dataflow:
+        ios/Runner/Kokoro/KokoroTTS.swift
+        ios/Runner/Kokoro/KokoroVoices.swift
+
+--------------------------------------------------------------------------------
+Misaki
+    Author:   hexgrad
+    License:  Apache License 2.0
+    Source:   https://github.com/hexgrad/misaki
+
+    The grapheme-to-phoneme engine for Kokoro. The Swift port under
+    ios/Runner/Kokoro/Misaki/ comes from kokoro-swift's bundled copy.
+
+    espeak-ng is NOT used and NOT linked; it is GPL-licensed, and nothing in
+    this repository depends on it.
+
+--------------------------------------------------------------------------------
+Neither kokoro-swift, Misaki, nor Kokoro-82M ships a NOTICE file of its own, so
+there is no upstream NOTICE content to reproduce here (Apache License 2.0,
+section 4(d)). This file records the attribution and the modifications required
+by sections 4(b) and 4(c).

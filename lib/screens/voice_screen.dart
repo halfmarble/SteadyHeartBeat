@@ -9,9 +9,8 @@ import '../widgets/app_chrome.dart';
 /// (best quality first), lets the user sample each, and pick one — or leave it
 /// on "Automatic", which uses the highest-quality installed voice (Option A).
 ///
-/// Higher-quality (Premium / Enhanced) voices are on-device downloads the user
-/// installs through iOS Settings — the instructions card explains how, since
-/// Apple's voices can't be bundled into a third-party app.
+/// This picker only reaches the AVSpeechSynthesizer fallback tier — the voice
+/// the app normally speaks in is Kokoro (see ios/Runner/Kokoro/).
 class VoiceScreen extends StatefulWidget {
   const VoiceScreen({super.key});
 
@@ -95,8 +94,6 @@ class _VoiceScreenState extends State<VoiceScreen> with WidgetsBindingObserver {
           : ListView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
               children: [
-                const _DownloadInstructions(),
-                const SizedBox(height: 24),
                 _AutoRow(
                   selected: provider.voiceIdentifier == null,
                   resolvedName: _resolvedName(),
@@ -135,100 +132,6 @@ class _VoiceScreenState extends State<VoiceScreen> with WidgetsBindingObserver {
         onPreview: () => _preview(id),
       );
     }).toList();
-  }
-}
-
-// ── Download instructions (the user can only get Premium voices via iOS) ───────
-
-class _DownloadInstructions extends StatelessWidget {
-  const _DownloadInstructions();
-
-  @override
-  Widget build(BuildContext context) {
-    const steps = [
-      'Open the iPhone Settings app.',
-      'Go to Accessibility → Read & Speak → Voices → English. '
-          '(On iOS 18 and earlier, Read & Speak is called Spoken Content.)',
-      'Tap the Voice row, then choose a named voice — Ava, Zoe, Evan or Nathan — '
-          'and download its Premium or Enhanced version.',
-      'Come back here — the named voice appears in the list below.',
-    ];
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: kSurface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: kAccent.withAlpha(kAlphaMid)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(CupertinoIcons.info_circle, size: kIconXS, color: kAccent),
-              const SizedBox(width: 8),
-              Text(
-                'Want a higher-quality voice?',
-                style: const TextStyle(
-                  color: kTextBright,
-                  fontSize: kFontLG,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'Apple’s best voices are free downloads on your iPhone — they can’t be '
-            'built into the app. Once downloaded, pick one below.',
-            style: TextStyle(color: kTextSubtle, fontSize: kFontBase, height: 1.4),
-          ),
-          const SizedBox(height: 12),
-          for (int i = 0; i < steps.length; i++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${i + 1}.',
-                    style: const TextStyle(
-                      color: kAccent,
-                      fontSize: kFontBase,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      steps[i],
-                      style: const TextStyle(
-                        color: kTextMuted,
-                        fontSize: kFontBase,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: kSurfaceDark,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Text(
-              'The “Voice 1–5” options in Settings are Siri’s voices. They sound '
-              'great, but Apple keeps them system-only — apps can’t use or list '
-              'them. Pick a named voice instead.',
-              style: TextStyle(color: kTextSubtle, fontSize: kFontCaption, height: 1.4),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

@@ -352,8 +352,8 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Mirror the StoreKit entitlement into the Plus module. The stream fires once
   /// on listen with the current value, so a returning owner is unlocked at
-  /// launch without any tap. The compile-time owner unlock (SHB_PLUS_UNLOCK)
-  /// still wins inside [plus] regardless of what StoreKit reports.
+  /// launch without any tap. The compile-time owner/dev unlock still wins
+  /// inside [plus] regardless of what StoreKit reports.
   void _listenEntitlement() {
     _entitlementSub = _iap.plusEntitled.listen((owned) {
       if (_disposed) return;
