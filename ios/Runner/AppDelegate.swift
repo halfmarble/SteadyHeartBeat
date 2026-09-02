@@ -106,6 +106,11 @@ import AVFoundation
 
 
 
+            case "speakGreeting":
+                let args = call.arguments as? [String: Any]
+                WorkoutManager.shared.speakGreeting(text: args?["text"] as? String ?? "")
+                result(nil)
+
             case "speak":
                 let args = call.arguments as? [String: Any]
                 let text = args?["text"] as? String ?? ""

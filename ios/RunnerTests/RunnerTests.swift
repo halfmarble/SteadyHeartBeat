@@ -1,3 +1,4 @@
+import AVFoundation
 import XCTest
 @testable import Runner
 
@@ -469,5 +470,111 @@ final class KokoroComputeUnitsTests: XCTestCase {
                 — GPU-eligible, and refused in the background.
                 """)
         }
+    }
+}
+
+// MARK: - Render cache
+
+/// The cache hands buffers back to the audio engine, so the two things that
+/// would break audio silently are: handing back the SAME object the player is
+/// already draining, and losing a buffer in the copy. A cue is often more than
+/// one buffer, so a copy that drops one truncates speech mid-number.
+final class RenderCacheTests: XCTestCase {
+
+    private func buffer(_ values: [Float]) -> AVAudioPCMBuffer {
+        let fmt = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 24_000,
+                                channels: 1, interleaved: false)!
+        let b = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: AVAudioFrameCount(values.count))!
+        b.frameLength = AVAudioFrameCount(values.count)
+        values.withUnsafeBufferPointer { b.floatChannelData![0].update(from: $0.baseAddress!, count: values.count) }
+        return b
+    }
+
+    func testCopyPreservesEveryBufferAndItsSamples() {
+        let source = [buffer([0.1, -0.2, 0.3]), buffer([0.4, 0.5])]
+        let copied = AnnounceEngine.copies(of: source)
+        XCTAssertEqual(copied.count, source.count, "a dropped buffer truncates the cue")
+        for (a, b) in zip(source, copied) {
+            XCTAssertEqual(a.frameLength, b.frameLength)
+            for i in 0..<Int(a.frameLength) {
+                XCTAssertEqual(a.floatChannelData![0][i], b.floatChannelData![0][i], accuracy: 1e-6)
+            }
+        }
+    }
+
+    func testCopyIsNotTheSameObject() {
+        let source = [buffer([0.1, 0.2])]
+        let copied = AnnounceEngine.copies(of: source)
+        XCTAssertFalse(copied[0] === source[0],
+                       "aliasing the cached buffer lets the player mutate the cache")
+        copied[0].floatChannelData![0][0] = 0.9
+        XCTAssertEqual(source[0].floatChannelData![0][0], 0.1, accuracy: 1e-6,
+                       "writing to the copy must not reach the original")
+    }
+
+    /// The two cue rates in use (0.48 lead, 0.40 nudge) produce different audio
+    /// for the same words, so rate has to be part of the key.
+    func testCacheKeySeparatesRates() {
+        let a = AVSpeechUtterance(string: "142"); a.rate = 0.48
+        let b = AVSpeechUtterance(string: "142"); b.rate = 0.40
+        XCTAssertNotEqual(AnnounceEngine.cacheKey(a), AnnounceEngine.cacheKey(b))
+        let c = AVSpeechUtterance(string: "142"); c.rate = 0.48
+        XCTAssertEqual(AnnounceEngine.cacheKey(a), AnnounceEngine.cacheKey(c))
+    }
+}
+
+// MARK: - Channel coverage
+
+/// Every method Dart invokes must have a case in AppDelegate.
+///
+/// When it does not, nothing fails: the Dart side fire-and-forgets several of
+/// these calls, so an unhandled method is simply silence. That is exactly how
+/// the welcome greeting went missing — `speakGreeting` was added to the service
+/// and the native class, and its channel case was later removed by an unrelated
+/// edit. No compiler complained, no test failed, and the only symptom was a
+/// greeting nobody heard.
+///
+/// Source scan for the same reason as KokoroComputeUnitsTests: the two sides
+/// are different languages and the contract between them is a string.
+final class ChannelCoverageTests: XCTestCase {
+
+    private static var repoRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()      // ios/RunnerTests
+            .deletingLastPathComponent()      // ios
+            .deletingLastPathComponent()      // repo
+    }
+
+    private static func matches(_ pattern: String, in text: String, group: Int = 1) -> Set<String> {
+        let re = try! NSRegularExpression(pattern: pattern)
+        let ns = text as NSString
+        var out: Set<String> = []
+        for m in re.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+            out.insert(ns.substring(with: m.range(at: group)))
+        }
+        return out
+    }
+
+    func testEveryDartInvocationHasANativeCase() throws {
+        let service = Self.repoRoot.appendingPathComponent("lib/services/workout_service.dart")
+        let delegate = Self.repoRoot.appendingPathComponent("ios/Runner/AppDelegate.swift")
+        let dart = try String(contentsOf: service, encoding: .utf8)
+        let swift = try String(contentsOf: delegate, encoding: .utf8)
+
+        let invoked = Self.matches(#"invoke(?:List|Map)?Method(?:<[^>]*>)?\(\s*'([A-Za-z0-9_]+)'"#, in: dart)
+        XCTAssertFalse(invoked.isEmpty, "found no invocations — the scan is checking nothing")
+
+        let handled = Self.matches(#"case "([A-Za-z0-9_]+)":"#, in: swift)
+        XCTAssertFalse(handled.isEmpty, "found no native cases — the scan is checking nothing")
+
+        // The gate engine takes anything the switch does not recognise, so a
+        // method it owns is legitimately absent from AppDelegate.
+        let plusOwned: Set<String> = ["setGateConfig"]
+        let missing = invoked.subtracting(handled).subtracting(plusOwned).sorted()
+        XCTAssertTrue(missing.isEmpty, """
+            Dart invokes \(missing) with no matching case in AppDelegate.swift. \
+            These fail silently — several call sites do not await the result — so \
+            the symptom is a feature that simply does nothing.
+            """)
     }
 }

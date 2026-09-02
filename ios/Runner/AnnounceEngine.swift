@@ -224,6 +224,11 @@ final class AnnounceEngine {
         _keepAlivePlayer.stop()
         _engine.stop()
         _rendering = false
+        // The cache holds audio of what this workout actually said — heart
+        // rates included — so it dies with the workout rather than lingering in
+        // memory until the app is killed.
+        _renderCache.removeAll()
+        _renderCacheOrder.removeAll()
     }
 
     // Flush the whole announcement pipeline: pending renders, queued cues, and
@@ -349,6 +354,73 @@ final class AnnounceEngine {
     // The utterance is still the unit of work even on the Kokoro path: it
     // already carries the text and the rate the caller chose, and building one
     // costs nothing if Kokoro answers.
+    // ── Render cache (tiers 2 and 3) ──────────────────────────────────────
+    //
+    // Tier 1 needs no cache: KokoroClips already holds decoded PCM, and a clip
+    // is a file read. This is for the tiers that COMPUTE — live Kokoro is Core
+    // ML inference on the ANE, and AVSpeechSynthesizer.write drives an
+    // out-of-process daemon. Both cost real energy, and both are deterministic
+    // for a given (text, rate), so speaking the same cue twice should synthesize
+    // once. In a workout the repeats are the point: the same phrase recurs every
+    // interval for an hour.
+    //
+    // IN MEMORY ONLY, DELIBERATELY. A disk cache would persist audio of the
+    // user's actual heart rates — "one hundred and fifty-two, zone four" is a
+    // health record, and writing it to the container would create a new
+    // at-rest health-data surface for a saving measured in milliseconds. The
+    // corpus on disk is safe precisely because it is every POSSIBLE number,
+    // revealing nothing about which ones were spoken. See DATA_PRIVACY.md.
+    //
+    // Cleared on stop() with the rest of the engine's state, so a cache never
+    // outlives the workout that filled it.
+    private static let renderCacheLimit = 24
+    private var _renderCache: [String: [AVAudioPCMBuffer]] = [:]
+    private var _renderCacheOrder: [String] = []
+
+    static func cacheKey(_ utt: AVSpeechUtterance) -> String {
+        // Rate matters: the two cue rates in use (0.48 lead, 0.40 nudge) map to
+        // different Kokoro speeds and different AVSpeech output.
+        "\(utt.speechString)|\(utt.rate)"
+    }
+
+    private func _cached(_ key: String) -> [AVAudioPCMBuffer]? {
+        guard let hit = _renderCache[key] else { return nil }
+        if let i = _renderCacheOrder.firstIndex(of: key) {
+            _renderCacheOrder.remove(at: i)
+            _renderCacheOrder.append(key)
+        }
+        return hit
+    }
+
+    private func _cache(_ buffers: [AVAudioPCMBuffer], for key: String) {
+        guard !buffers.isEmpty else { return }
+        if _renderCache[key] == nil { _renderCacheOrder.append(key) }
+        _renderCache[key] = buffers
+        while _renderCacheOrder.count > Self.renderCacheLimit {
+            _renderCache.removeValue(forKey: _renderCacheOrder.removeFirst())
+        }
+    }
+
+    /// Buffers are read by the player node, so a cached entry must never be the
+    /// same object the engine is currently draining — hand back copies.
+    static func copies(of buffers: [AVAudioPCMBuffer]) -> [AVAudioPCMBuffer] {
+        buffers.compactMap { src in
+            guard let dup = AVAudioPCMBuffer(pcmFormat: src.format,
+                                             frameCapacity: src.frameCapacity) else { return nil }
+            dup.frameLength = src.frameLength
+            let channels = Int(src.format.channelCount)
+            let frames = Int(src.frameLength)
+            if let s = src.floatChannelData, let d = dup.floatChannelData {
+                for c in 0..<channels { d[c].update(from: s[c], count: frames) }
+            } else if let s = src.int16ChannelData, let d = dup.int16ChannelData {
+                for c in 0..<channels { d[c].update(from: s[c], count: frames) }
+            } else {
+                return nil
+            }
+            return dup
+        }
+    }
+
     private func _render(_ utt: AVSpeechUtterance, _ done: @escaping ([AVAudioPCMBuffer]) -> Void) {
         // Tier 1: pre-rendered Kokoro. Instant, background-safe, and the same
         // voice as tier 2 because it came off the same weights. Covers the
@@ -358,10 +430,22 @@ final class AnnounceEngine {
             DispatchQueue.main.async { done(buffers) }
             return
         }
+        // Everything below this line COMPUTES, so consult the cache first.
+        let key = Self.cacheKey(utt)
+        if let hit = _cached(key) {
+            let copies = Self.copies(of: hit)
+            DispatchQueue.main.async { done(copies) }
+            return
+        }
+        let remember: ([AVAudioPCMBuffer]) -> Void = { [weak self] buffers in
+            self?._cache(Self.copies(of: buffers), for: key)
+            done(buffers)
+        }
+
         // Tier 2: live Kokoro, for anything outside the corpus — only if it has
         // finished its one-time Core ML compile.
         if let tts = AnnounceEngine.kokoro {
-            _renderKokoro(tts, utt, done)
+            _renderKokoro(tts, utt, remember)
             return
         }
         // Not warm yet: speak this cue in the system voice and start the load
@@ -369,7 +453,7 @@ final class AnnounceEngine {
         // compile measured in tens of seconds, and a workout cue cannot block
         // on it. Kokoro takes over from the cue after it finishes loading.
         AnnounceEngine.prepareKokoro()
-        _renderWithAVSpeech(utt, done)
+        _renderWithAVSpeech(utt, remember)
     }
 
     /// Kokoro-82M through Core ML, off the main thread.
