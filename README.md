@@ -62,7 +62,7 @@ Announcements are spoken by **Kokoro-82M** — an open-weight neural text-to-spe
 
 What the app can say is a closed set — a heart rate, a training zone, a nudge, a round number, and a handful of fixed phrases — so it ships **pre-rendered** in that voice as ~5 MB of audio. The renderer is in the repo: `scripts/kokocli.swift -corpus` regenerates the whole set from the same weights the live tier uses (build instructions are in its header; note that Core ML synthesis is not run-to-run deterministic, so a re-render is equivalent, not identical). Anything outside that set is synthesized live on-device through Core ML (CPU and Neural Engine only — iOS will not run GPU work from a backgrounded app, and this app speaks while backgrounded).
 
-Apple's own `AVSpeechSynthesizer` remains as a fallback for the rare case where a neural render fails; the **Preferences → Voice & announcements → Voice** picker chooses which system voice that fallback uses.
+Apple's **Ava (Premium)** remains as a fallback for the rare case where a cue is not in the corpus and a neural render fails. There is no voice setting: the app speaks in one voice, and offering a choice would have meant offering voices that sound worse or take a minute to warm up mid-workout.
 
 ---
 

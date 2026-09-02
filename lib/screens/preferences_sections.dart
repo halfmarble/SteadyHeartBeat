@@ -1,6 +1,6 @@
 part of 'preferences_screen.dart';
 
-/// Preferences — the announcement, units, voice and Apple Health sections.
+/// Preferences — the announcement, units and Apple Health sections.
 ///
 /// A `part` of preferences_screen.dart rather than its own library: every
 /// widget here is a private implementation detail of that screen, and `part`
@@ -43,7 +43,7 @@ class _WelcomeSection extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 12),
             child: Text(
-              'When you open the app, it greets you in your chosen voice and '
+              'When you open the app, it greets you and '
               'reminds you to put in your AirPods.',
               style: TextStyle(color: kTextSubtle, fontSize: kFontBase, height: 1.4),
             ),
@@ -102,52 +102,6 @@ class _AppleHealthSection extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// The single row on the main Preferences screen that opens
-/// [VoicePreferencesScreen]. Shows the currently-selected voice as a hint.
-class _VoicePrefsEntry extends StatelessWidget {
-  const _VoicePrefsEntry({required this.provider});
-  final WorkoutProvider provider;
-
-  @override
-  Widget build(BuildContext context) {
-    final voice = provider.voiceName ?? 'Automatic';
-    return Semantics(
-      button: true,
-      label: 'Voice and announcements. Voice: $voice. Opens speech settings.',
-      child: GestureDetector(
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const VoicePreferencesScreen()),
-        ),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          decoration: BoxDecoration(
-            color: kSurface,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: ExcludeSemantics(
-            child: Row(
-              children: [
-                const Icon(CupertinoIcons.waveform, size: kIconXS, color: kAccent),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'Voice, interval & change alerts',
-                    style: TextStyle(color: kTextBright, fontSize: kFontLG),
-                  ),
-                ),
-                Text(voice,
-                    style: const TextStyle(color: kTextSubtle, fontSize: kFontBase)),
-                const SizedBox(width: 6),
-                const Icon(CupertinoIcons.chevron_right, size: kIconXS, color: kTextLabel),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -227,47 +181,6 @@ class _UnitsSelector extends StatelessWidget {
                           fontSize: kFontCaption)),
                 ],
               ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _VoiceSelector extends StatelessWidget {
-  const _VoiceSelector({required this.provider});
-  final WorkoutProvider provider;
-
-  @override
-  Widget build(BuildContext context) {
-    final name = provider.voiceName ?? 'Automatic (best available)';
-    return Semantics(
-      button: true,
-      label: 'Announce voice, currently $name. Opens the voice picker.',
-      child: GestureDetector(
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const VoiceScreen()),
-        ),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          decoration: BoxDecoration(
-            color: kSurface,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: ExcludeSemantics(
-            child: Row(
-              children: [
-                const Icon(CupertinoIcons.waveform, size: kIconXS, color: kAccent),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    name,
-                    style: const TextStyle(color: kTextBright, fontSize: kFontLG),
-                  ),
-                ),
-                const Icon(CupertinoIcons.chevron_right, size: kIconXS, color: kTextLabel),
-              ],
             ),
           ),
         ),

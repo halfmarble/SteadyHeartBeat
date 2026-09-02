@@ -260,6 +260,13 @@ enum KokoCLI {
                 try renderCorpus(to: outDir, assets: assets, voice: voice)
                 return
             }
+            // Print the vocabulary as `id|text`, so another renderer can work
+            // from Corpus.swift rather than from an existing manifest — a
+            // manifest cannot contain a phrase that has just been added.
+            if args.contains("-list") {
+                for item in Corpus.all() { print("\(item.id)|\(item.text)") }
+                return
+            }
             if let file = option("-lines") {
                 guard let outDir = args.first else { fail(usage) }
                 try renderLines(from: file, to: outDir, assets: assets, voice: voice,

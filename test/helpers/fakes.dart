@@ -49,8 +49,6 @@ class FakeTtsService extends TtsService {
   @override
   Future<void> init() async {}
   @override
-  Future<void> setVoice(String gender) async {}
-  @override
   Future<void> speak(String text, {bool force = false}) async {
     spoken.add(text);
   }
@@ -122,11 +120,7 @@ class FakeWorkoutService extends WorkoutService {
   @override
   Future<Map<String, dynamic>?> getBodyMass() async => null;
   @override
-  Future<List<Map<String, dynamic>>> listVoices() async => const [];
-  @override
-  Future<String> currentVoiceIdentifier() async => '';
-  @override
-  Future<void> previewVoice(String identifier, {String? text}) async {}
+  Future<void> speakGreeting(String text) async {}
   @override
   Future<void> setZones(List<int> bounds) async {}
   @override

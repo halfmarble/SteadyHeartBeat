@@ -10,7 +10,6 @@ import '../services/workout_service.dart';
 import '../services/export_service.dart';
 import '../services/donation_service.dart';
 import '../constants.dart';
-import 'voice_screen.dart';
 import 'import_health_screen.dart';
 import '../widgets/app_chrome.dart';
 
@@ -32,7 +31,14 @@ class PreferencesScreen extends StatelessWidget {
         builder: (context, provider, _) => ListView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           children: [
-            _VoicePrefsEntry(provider: provider),
+            _NavRow(
+              icon: CupertinoIcons.speaker_2,
+              title: 'Announcements',
+              subtitle: 'Interval, change alerts, welcome message',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const VoicePreferencesScreen()),
+              ),
+            ),
             const SizedBox(height: 12),
             _NavRow(
               icon: CupertinoIcons.person,
@@ -334,9 +340,9 @@ class _GateProtocolsScreen extends StatelessWidget {
   }
 }
 
-/// Standalone page gathering every speech-related setting: the voice picker,
-/// the announce interval, and announce-on-change. Reached from the main
-/// Preferences screen's "Voice & announcements" entry.
+/// Standalone page gathering the announcement settings: interval,
+/// announce-on-change, and the welcome message. There is no voice setting —
+/// the app speaks in one voice by design (2026-09-02).
 class VoicePreferencesScreen extends StatelessWidget {
   const VoicePreferencesScreen({super.key});
 
@@ -344,17 +350,13 @@ class VoicePreferencesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Voice & announcements'),
+        title: const Text('Announcements'),
         leading: backButton(context),
       ),
       body: Consumer<WorkoutProvider>(
         builder: (context, provider, _) => ListView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           children: [
-            _SectionHeader(title: 'VOICE'),
-            const SizedBox(height: 8),
-            _VoiceSelector(provider: provider),
-            const SizedBox(height: 32),
             _SectionHeader(title: 'WELCOME MESSAGE'),
             const SizedBox(height: 12),
             _WelcomeSection(provider: provider),

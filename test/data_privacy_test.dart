@@ -58,9 +58,7 @@ class _CapturingWorkoutService extends WorkoutService {
   @override Future<Map<String, dynamic>?> getRestingHR() async => null;
   @override Future<Map<String, dynamic>?> getVO2Max() async => null;
   @override Future<Map<String, dynamic>?> getBodyMass() async => null;
-  @override Future<List<Map<String, dynamic>>> listVoices() async => const [];
-  @override Future<String> currentVoiceIdentifier() async => '';
-  @override Future<void> previewVoice(String identifier, {String? text}) async {}
+  @override Future<void> speakGreeting(String text) async {}
   @override Future<void> setZones(List<int> bounds) async {}
   @override Future<void> setZoneCoaching({required bool enabled, required int targetZone}) async {}
   @override Future<void> setBoxingRounds({required bool enabled, required int roundSecs, required int restSecs, required int totalRounds, required int warnSecs, required int prepSecs}) async {}
@@ -75,7 +73,6 @@ class _FakeWakelock extends WakelockPlusPlatformInterface {
 
 class _FakeTts extends TtsService {
   @override Future<void> init() async {}
-  @override Future<void> setVoice(String gender) async {}
   @override Future<void> speak(String text, {bool force = false}) async {}
   @override Future<void> stop() async {}
   @override Future<void> dispose() async {}

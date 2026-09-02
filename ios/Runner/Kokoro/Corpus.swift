@@ -36,6 +36,8 @@ enum Corpus {
         "feet",
         "meters",
         "Climbed",
+        "Welcome to SteadyHeartBeat. Your AirPods are connected. Tap start when you are ready.",
+        "Welcome to SteadyHeartBeat. Put in your AirPods Pro to begin.",
     ]
 
     /// (clip id, text to synthesize). The id is what the app looks up.

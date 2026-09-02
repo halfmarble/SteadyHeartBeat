@@ -23,11 +23,6 @@ class TtsService {
     // nothing to do here. Kept as a hook for test fakes.
   }
 
-  /// Selects the announce voice by its system identifier. An empty string means
-  /// "automatic" — native falls back to the best available voice (Option A).
-  Future<void> setVoice(String identifier) async {
-    await _channel.invokeMethod('setVoice', {'identifier': identifier});
-  }
 
   /// Speaks [text]. Announcements queue natively and are never interrupted —
   /// a cue requested while another is speaking plays right after it (a newer

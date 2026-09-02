@@ -41,7 +41,7 @@ class _FakeWorkoutService extends WorkoutService {
   @override Future<Map<String, dynamic>?> getVO2Max() async => null;
   @override Future<Map<String, dynamic>?> getBodyMass() async => null;
   @override Future<Map<String, dynamic>> checkAirPods() async => {'connected': false, 'name': ''};
-  @override Future<void> previewVoice(String identifier, {String? text}) async {}
+  @override Future<void> speakGreeting(String text) async {}
   @override Future<void> setSaveToHealth(bool enabled) async {}
   @override Stream<Map<String, dynamic>> get heartRateStream => _hr.stream;
   @override Stream<Map<String, dynamic>> get statusStream => _status.stream;
@@ -49,7 +49,6 @@ class _FakeWorkoutService extends WorkoutService {
 
 class _FakeTts extends TtsService {
   @override Future<void> init() async {}
-  @override Future<void> setVoice(String gender) async {}
   @override Future<void> speak(String text, {bool force = false}) async {}
   @override Future<void> stop() async {}
   @override Future<void> dispose() async {}

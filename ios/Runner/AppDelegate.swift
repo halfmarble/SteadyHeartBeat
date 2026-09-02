@@ -104,31 +104,7 @@ import AVFoundation
             case "getBodyMass":
                 HealthHistoryRepository.shared.getBodyMass { data in result(data) }
 
-            case "setVoice":
-                let identifier = (call.arguments as? [String: Any])?["identifier"] as? String ?? ""
-                WorkoutManager.shared.setVoice(identifier: identifier)
-                result(nil)
 
-            case "listVoices":
-                result(WorkoutManager.shared.listVoices())
-
-            case "currentVoiceIdentifier":
-                result(WorkoutManager.shared.currentVoiceIdentifier())
-
-            case "appVoiceName":
-                result(WorkoutManager.shared.appVoiceName())
-
-            case "previewAppVoice":
-                let args = call.arguments as? [String: Any]
-                let text = args?["text"] as? String ?? "Monitoring heart rate"
-                result(WorkoutManager.shared.previewAppVoice(text: text))
-
-            case "previewVoice":
-                let args = call.arguments as? [String: Any]
-                let identifier = args?["identifier"] as? String ?? ""
-                let text = args?["text"] as? String ?? "This is a sample of the voice."
-                WorkoutManager.shared.previewVoice(identifier: identifier, text: text)
-                result(nil)
 
             case "speak":
                 let args = call.arguments as? [String: Any]

@@ -261,11 +261,6 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   int sessionCount = 0;
 
   // Preferences
-  // Selected announce voice. null identifier = "automatic": native picks the
-  // best installed voice (Option A — premium > enhanced > default). voiceName is
-  // kept only so Preferences can show the chosen voice without re-querying.
-  String? voiceIdentifier;
-  String? voiceName;
   int announceIntervalSeconds = 60;    // 0 (continuous) | 15 | 30 | 60
   bool deltaAnnounceEnabled = false;   // off by default — opt-in, see preferences
   int deltaThreshold = 10;             // BPM change that triggers immediate announce
@@ -484,8 +479,6 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    voiceIdentifier = prefs.getString('voiceIdentifier');
-    voiceName = prefs.getString('voiceName');
     announceIntervalSeconds = prefs.getInt('announceInterval') ?? 60;
     deltaAnnounceEnabled = prefs.getBool('deltaAnnounceEnabled') ?? false;
     deltaThreshold = prefs.getInt('deltaThreshold') ?? 10;
@@ -571,7 +564,6 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_disposed) return;
     _safeNotify();
     await _tts.init();
-    await _tts.setVoice(voiceIdentifier ?? '');
     // Recover any in-progress workout that didn't get a clean save (app killed,
     // OOM, force-quit) by computing a summary from the last persisted snapshot.
     await _recoverOrphanSession();
@@ -587,13 +579,13 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     _fetchRestingHR();
     _fetchVO2Max();
     _fetchBodyMass();
-    // Greet the user once the chosen voice is loaded — confirms the voice + the
-    // AirPods route, and nudges them to connect the buds if they aren't.
+    // Greet the user — confirms the voice and the AirPods route, and nudges
+    // them to connect the buds if they aren't.
     _maybeSpeakWelcome();
   }
 
-  /// Speaks a short welcome at launch (once), in the selected voice, through the
-  /// foreground preview path (the workout engine isn't running yet). The text
+  /// Speaks a short welcome at launch (once), from the corpus, through the
+  /// foreground cue path (the workout engine isn't running yet). The text
   /// adapts to whether AirPods are connected so it doubles as a "put in your
   /// AirPods" nudge. Routes to the AirPods when present, the speaker otherwise.
   Future<void> _maybeSpeakWelcome() async {
@@ -606,21 +598,11 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     final text = ready
         ? 'Welcome to SteadyHeartBeat. Your AirPods are connected. Tap start when you are ready.'
         : 'Welcome to SteadyHeartBeat. Put in your AirPods Pro to begin.';
-    await _workout.previewVoice('', text: text);
+    await _workout.speakGreeting(text);
   }
 
   Future<void> savePrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    if (voiceIdentifier != null) {
-      await prefs.setString('voiceIdentifier', voiceIdentifier!);
-    } else {
-      await prefs.remove('voiceIdentifier');
-    }
-    if (voiceName != null) {
-      await prefs.setString('voiceName', voiceName!);
-    } else {
-      await prefs.remove('voiceName');
-    }
     await prefs.setInt('announceInterval', announceIntervalSeconds);
     await prefs.setBool('deltaAnnounceEnabled', deltaAnnounceEnabled);
     await prefs.setInt('deltaThreshold', deltaThreshold);
@@ -637,7 +619,6 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     await prefs.setString('workoutType', selectedWorkoutType.hkKey);
     await prefs.setBool('useImperial', useImperial);
     await prefs.setBool('saveToHealth', saveToHealth);
-    await _tts.setVoice(voiceIdentifier ?? '');
   }
 
   /// Called from Preferences when the user taps "Authorize Health Access".
@@ -1692,32 +1673,6 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
     _dimTimer?.cancel();
   }
 
-  /// Selects the announce voice. [identifier] null = automatic (best available).
-  /// [name] is stored only for display in Preferences. Persists, pushes the
-  /// choice to native, and re-announces the current BPM if a workout is live.
-  Future<void> setVoice(String? identifier, {String? name}) async {
-    voiceIdentifier = identifier;
-    voiceName = name;
-    notifyListeners();
-    await savePrefs();
-    _announcePrefChange();
-  }
-
-  /// English voices installed on this iPhone, best quality first (for the picker).
-  Future<List<Map<String, dynamic>>> availableVoices() => _workout.listVoices();
-
-  /// The voice the announce path actually resolves to right now — including the
-  /// auto-selected best voice when none is chosen. Lets the picker highlight it.
-  Future<String> resolvedVoiceIdentifier() => _workout.currentVoiceIdentifier();
-
-  /// Plays a spoken sample of [identifier] (empty = automatic) for the picker.
-  Future<void> previewVoice(String identifier, {String? text}) =>
-      _workout.previewVoice(identifier, text: text);
-
-  Future<String> appVoiceName() => _workout.appVoiceName();
-
-  Future<bool> previewAppVoice({String? text}) =>
-      _workout.previewAppVoice(text: text);
 
   Future<void> setAnnounceInterval(int seconds) async {
     announceIntervalSeconds = seconds;

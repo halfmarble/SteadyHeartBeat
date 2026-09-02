@@ -96,41 +96,11 @@ class WorkoutService {
     return result ?? 'unknown';
   }
 
-  /// Lists English voices installed on this iPhone, best quality first. Each
-  /// entry: {identifier, name, quality ('premium'|'enhanced'|'default'),
-  /// gender, language} (all String).
-  Future<List<Map<String, dynamic>>> listVoices() async {
-    final result = await _method.invokeListMethod('listVoices');
-    if (result == null) return const [];
-    return result
-        .map((e) => Map<String, dynamic>.from(e as Map))
-        .toList();
-  }
-
-  /// The identifier of the voice the announce path is currently using —
-  /// including the resolved "best available" voice when none is chosen.
-  Future<String> currentVoiceIdentifier() async {
-    final result = await _method.invokeMethod<String>('currentVoiceIdentifier');
-    return result ?? '';
-  }
-
-  /// Plays a spoken sample of [identifier] (empty = automatic/best) for the
-  /// picker. Foreground only — uses a plain synthesizer, not the workout engine.
-  /// The Kokoro voice the app speaks in (e.g. "af_nova"), or '' when the
-  /// pre-rendered corpus is unavailable and it is running on the fallback.
-  Future<String> appVoiceName() async =>
-      await _method.invokeMethod<String>('appVoiceName') ?? '';
-
-  /// Plays the app's own voice from the shipped clips. False if unavailable.
-  Future<bool> previewAppVoice({String? text}) async =>
-      await _method.invokeMethod<bool>('previewAppVoice', {'text': text}) ?? false;
-
-  Future<void> previewVoice(String identifier, {String? text}) async {
-    await _method.invokeMethod('previewVoice', {
-      'identifier': identifier,
-      'text': ?text,
-    });
-  }
+  /// The pre-workout greeting, spoken in the app's own voice from the shipped
+  /// corpus. There is no voice-selection surface: the app speaks in one voice
+  /// (Kokoro af_nova), with a single fallback synthesiser it should never reach.
+  Future<void> speakGreeting(String text) async =>
+      await _method.invokeMethod('speakGreeting', {'text': text});
 
   /// Returns most recent resting HR: {'bpm': double, 'timestamp': double}.
   Future<Map<String, dynamic>?> getRestingHR() async {

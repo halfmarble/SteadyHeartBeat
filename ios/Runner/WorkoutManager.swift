@@ -43,8 +43,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     }
 
     // The announce voice — mirrored into _announce.voice on change; also used
-    // by the out-of-process preview synth (bindAirPods / previewVoice).
-    private var _speechVoice: AVSpeechSynthesisVoice?
+    // by the out-of-process preview synth (bindAirPods).
 
     // The in-process render → duck → play pipeline (AnnounceEngine.swift).
     // This manager keeps announce POLICY (cooldowns, boxing-countdown
@@ -167,7 +166,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
             self?._composeBpmAnnounce(bpm) ?? ("\(Int(bpm.rounded()))", nil)
         }
         _announce.isActive = { [weak self] in self?.session != nil }
-        _announce.voiceProvider = { [weak self] in self?._speechVoice }
+        _announce.voiceProvider = { [weak self] in self?._resolveFallbackVoice() }
         _announce.onEngineStartFailed = { [weak self] in
             self?._emitStatus(["type": "state", "value": "audioUnavailable"])
         }
@@ -440,72 +439,40 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
 
     // Option A: when the user hasn't picked a specific voice, choose the highest
     // quality English voice available on the device.
-    private func _bestDefaultVoice() -> AVSpeechSynthesisVoice? {
-        _englishVoices().first ?? AVSpeechSynthesisVoice(language: "en-US")
-    }
+    /// THE fallback voice, and the only one: Ava (Premium).
+    ///
+    /// The app speaks in Kokoro af_nova, pre-rendered. This synthesiser is
+    /// reached only when a cue is not in the corpus, which for the shipped
+    /// vocabulary is never. There is therefore nothing for a user to choose
+    /// between, and the picker that used to offer that choice was actively
+    /// misleading — it listed system voices with no indication that they were
+    /// not the app's voice (2026-09-02).
+    ///
+    /// Ava (Premium) rather than "best installed": a named voice is a known
+    /// quantity, and "best available" silently varied by device. If Ava is not
+    /// installed — it is a user-initiated download — this falls through to the
+    /// best English voice and finally to the system default, so the app always
+    /// has something to speak with.
+    private static let fallbackVoiceName = "Ava"
 
-    /// Select the announce voice by its system identifier. An empty/unknown
-    /// identifier falls back to the best available voice (Option A).
-    func setVoice(identifier: String) {
-        if !identifier.isEmpty, let v = AVSpeechSynthesisVoice(identifier: identifier) {
-            _speechVoice = v
-        } else {
-            _speechVoice = _bestDefaultVoice()
-        }
-    }
+    // ── The foreground cue channel ────────────────────────────────────────
+    //
+    // Used before the announce engine is running: the AirPods connection prompt
+    // (producing sound is what nudges the Bluetooth route into place) and the
+    // pre-workout greeting. Two implementations, one logical channel — anything
+    // that waits for it or silences it must handle both.
 
-    /// Metadata for every installed English voice, for the picker UI.
-    func listVoices() -> [[String: Any]] {
-        _englishVoices().map { v in
-            [
-                "identifier": v.identifier,
-                "name":       v.name,
-                "quality":    _qualityName(v.quality),
-                "gender":     _genderName(v.gender),
-                "language":   v.language,
-            ]
-        }
-    }
-
-    /// The identifier of the voice the announce path is currently using (so the
-    /// picker can highlight the resolved "best available" voice).
-    func currentVoiceIdentifier() -> String {
-        (_speechVoice ?? _bestDefaultVoice())?.identifier ?? ""
-    }
-
-    // Foreground-only sample playback for the picker. Uses a separate synthesizer
-    // and AVSpeechSynthesizer.speak() directly — the in-process-engine dance is
-    // only needed for background-over-music, which never applies in Settings. We
-    // briefly take a ducking playback session so the sample is audible over Music.
     private let _previewSynth = AVSpeechSynthesizer()
-
-    /// Plays a pre-rendered clip on the same foreground path as _previewSynth.
-    /// Anything that waits for, or silences, the preview synth must handle this
-    /// too — they are one logical channel with two implementations.
     private var _previewPlayer: AVAudioPlayer?
+
     private var _previewBusy: Bool {
         _previewSynth.isSpeaking || (_previewPlayer?.isPlaying ?? false)
     }
+
     private func _silencePreview() {
         _previewSynth.stopSpeaking(at: .immediate)
         _previewPlayer?.stop()
         _previewPlayer = nil
-    }
-
-    /// Sample the voice the app ACTUALLY speaks in, by playing the shipped
-    /// clips — not a synthesiser impression of them. Instant, because the corpus
-    /// is already rendered, and honest, because it is the same audio a workout
-    /// plays. Returns false when the clips are missing, so the UI can hide the
-    /// row rather than offer a button that does nothing.
-    @discardableResult
-    func previewAppVoice(text: String) -> Bool {
-        guard let urls = AnnounceEngine.clips?.fileURLs(for: text), !urls.isEmpty else { return false }
-        _silencePreview()
-        let s = AVAudioSession.sharedInstance()
-        try? s.setCategory(.playback, mode: .voicePrompt, options: [.mixWithOthers, .duckOthers])
-        try? s.setActive(true, options: [])
-        _playClips(urls)
-        return true
     }
 
     /// A cue can be more than one clip ("142, zone 4" is two), so chain them on
@@ -519,30 +486,39 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         let rest = Array(urls.dropFirst())
         guard !rest.isEmpty else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + player.duration) { [weak self] in
-            // Only continue if nothing else grabbed the channel meanwhile.
             guard let self, self._previewPlayer === player else { return }
             self._playClips(rest)
         }
     }
 
-    /// The name of the app's own voice, for the picker. Empty when the corpus is
-    /// unavailable and the app is therefore running on the fallback synthesiser.
-    func appVoiceName() -> String {
-        guard let clips = AnnounceEngine.clips else { return "" }
-        return clips.voice
-    }
-
-    func previewVoice(identifier: String, text: String) {
+    /// The pre-workout greeting. Clips first — it is in the corpus, so this is
+    /// Nova like everything else — and the fallback synthesiser only if the
+    /// installed corpus predates the greeting being added to it.
+    func speakGreeting(text: String) {
         _silencePreview()
-        let s = AVAudioSession.sharedInstance()
-        try? s.setCategory(.playback, mode: .voicePrompt, options: [.mixWithOthers, .duckOthers])
-        try? s.setActive(true, options: [])
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .voicePrompt, options: [.mixWithOthers, .duckOthers])
+        try? session.setActive(true, options: [])
+        if let urls = AnnounceEngine.clips?.fileURLs(for: text), !urls.isEmpty {
+            _playClips(urls)
+            return
+        }
         let utt = AVSpeechUtterance(string: text)
-        utt.voice = (!identifier.isEmpty ? AVSpeechSynthesisVoice(identifier: identifier) : nil)
-            ?? _speechVoice ?? AVSpeechSynthesisVoice(language: "en-US")
+        utt.voice = _resolveFallbackVoice()
         utt.rate = 0.48
         utt.volume = 1.0
         _previewSynth.speak(utt)
+    }
+
+    private func _resolveFallbackVoice() -> AVSpeechSynthesisVoice? {
+        let english = AVSpeechSynthesisVoice.speechVoices()
+            .filter { $0.language.hasPrefix("en") }
+        let ava = english.first {
+            $0.name.hasPrefix(Self.fallbackVoiceName) && $0.quality == .premium
+        } ?? english.first { $0.name.hasPrefix(Self.fallbackVoiceName) }
+        return ava
+            ?? english.sorted { $0.quality.rawValue > $1.quality.rawValue }.first
+            ?? AVSpeechSynthesisVoice(language: "en-US")
     }
 
     // MARK: - Zone coaching
@@ -1300,7 +1276,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
             player.play()
         } else {
             let utt = AVSpeechUtterance(string: connecting)
-            utt.voice = _speechVoice ?? AVSpeechSynthesisVoice(language: "en-US")
+            utt.voice = _resolveFallbackVoice()
             utt.rate = 0.48
             utt.volume = 1.0
             _previewSynth.speak(utt)

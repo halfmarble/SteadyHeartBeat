@@ -27,7 +27,6 @@ class SlowFakeTtsService extends TtsService {
   bool _busy = false;
 
   @override Future<void> init() async {}
-  @override Future<void> setVoice(String gender) async {}
   @override Future<void> stop() async {}
   @override Future<void> dispose() async {}
 
