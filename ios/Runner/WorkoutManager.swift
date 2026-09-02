@@ -492,6 +492,46 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         _previewPlayer = nil
     }
 
+    /// Sample the voice the app ACTUALLY speaks in, by playing the shipped
+    /// clips — not a synthesiser impression of them. Instant, because the corpus
+    /// is already rendered, and honest, because it is the same audio a workout
+    /// plays. Returns false when the clips are missing, so the UI can hide the
+    /// row rather than offer a button that does nothing.
+    @discardableResult
+    func previewAppVoice(text: String) -> Bool {
+        guard let urls = AnnounceEngine.clips?.fileURLs(for: text), !urls.isEmpty else { return false }
+        _silencePreview()
+        let s = AVAudioSession.sharedInstance()
+        try? s.setCategory(.playback, mode: .voicePrompt, options: [.mixWithOthers, .duckOthers])
+        try? s.setActive(true, options: [])
+        _playClips(urls)
+        return true
+    }
+
+    /// A cue can be more than one clip ("142, zone 4" is two), so chain them on
+    /// duration rather than firing them all at once.
+    private func _playClips(_ urls: [URL]) {
+        guard let first = urls.first, let player = try? AVAudioPlayer(contentsOf: first) else { return }
+        _previewPlayer = player
+        player.volume = 1.0
+        player.prepareToPlay()
+        player.play()
+        let rest = Array(urls.dropFirst())
+        guard !rest.isEmpty else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + player.duration) { [weak self] in
+            // Only continue if nothing else grabbed the channel meanwhile.
+            guard let self, self._previewPlayer === player else { return }
+            self._playClips(rest)
+        }
+    }
+
+    /// The name of the app's own voice, for the picker. Empty when the corpus is
+    /// unavailable and the app is therefore running on the fallback synthesiser.
+    func appVoiceName() -> String {
+        guard let clips = AnnounceEngine.clips else { return "" }
+        return clips.voice
+    }
+
     func previewVoice(identifier: String, text: String) {
         _silencePreview()
         let s = AVAudioSession.sharedInstance()

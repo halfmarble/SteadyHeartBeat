@@ -9,8 +9,12 @@ import '../widgets/app_chrome.dart';
 /// (best quality first), lets the user sample each, and pick one — or leave it
 /// on "Automatic", which uses the highest-quality installed voice (Option A).
 ///
-/// This picker only reaches the AVSpeechSynthesizer fallback tier — the voice
-/// the app normally speaks in is Kokoro (see ios/Runner/Kokoro/).
+/// Two sections, because there are two voices and conflating them is what made
+/// this screen misleading: the APP VOICE is Kokoro, on-device, and is what a
+/// workout actually sounds like; the list below it picks the SYSTEM voice used
+/// only when a neural render fails. The app voice is not selectable — there is
+/// one, it ships pre-rendered, and offering a choice would mean live synthesis
+/// with a minutes-long first load in the middle of a workout.
 class VoiceScreen extends StatefulWidget {
   const VoiceScreen({super.key});
 
@@ -23,6 +27,8 @@ class _VoiceScreenState extends State<VoiceScreen> with WidgetsBindingObserver {
   static const _sampleText = 'Heart rate 142.';
 
   List<Map<String, dynamic>> _voices = [];
+  String _appVoice = '';        // the Kokoro voice, '' when the corpus is absent
+  bool _appVoicePlaying = false;
   String _resolved = '';     // identifier the announce path currently resolves to
   bool _loading = true;
   String? _previewing;       // identifier whose sample is currently playing
@@ -53,6 +59,7 @@ class _VoiceScreenState extends State<VoiceScreen> with WidgetsBindingObserver {
     final provider = context.read<WorkoutProvider>();
     final all = await provider.availableVoices();
     final resolved = await provider.resolvedVoiceIdentifier();
+    final appVoice = await provider.appVoiceName();
     if (!mounted) return;
     // Only surface the good voices (Premium / Enhanced). If the user hasn't
     // downloaded any yet, fall back to the first 5 of the built-in defaults so
@@ -64,6 +71,7 @@ class _VoiceScreenState extends State<VoiceScreen> with WidgetsBindingObserver {
     setState(() {
       _voices = better.isNotEmpty ? better : all.take(5).toList();
       _resolved = resolved;
+      _appVoice = appVoice;
       _loading = false;
     });
   }
@@ -71,6 +79,14 @@ class _VoiceScreenState extends State<VoiceScreen> with WidgetsBindingObserver {
   void _select(String? identifier, String? name) {
     context.read<WorkoutProvider>().setVoice(identifier, name: name);
     setState(() {}); // reflect the new selection immediately
+  }
+
+  // Plays the shipped clips, so the sample IS the workout audio.
+  Future<void> _previewApp() async {
+    setState(() => _appVoicePlaying = true);
+    await context.read<WorkoutProvider>().previewAppVoice(text: 'Monitoring heart rate');
+    await Future.delayed(const Duration(milliseconds: 1600));
+    if (mounted) setState(() => _appVoicePlaying = false);
   }
 
   Future<void> _preview(String identifier) async {
@@ -94,6 +110,23 @@ class _VoiceScreenState extends State<VoiceScreen> with WidgetsBindingObserver {
           : ListView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
               children: [
+                if (_appVoice.isNotEmpty) ...[
+                  const _SectionLabel('APP VOICE'),
+                  const SizedBox(height: 8),
+                  _AppVoiceRow(
+                    voice: _appVoice,
+                    playing: _appVoicePlaying,
+                    onPreview: _previewApp,
+                  ),
+                  const SizedBox(height: 28),
+                ],
+                const _SectionLabel('FALLBACK VOICE'),
+                const SizedBox(height: 4),
+                const Text(
+                  'Used only if the app voice is unavailable.',
+                  style: TextStyle(color: kTextSubtle, fontSize: kFontBase, height: 1.4),
+                ),
+                const SizedBox(height: 12),
                 _AutoRow(
                   selected: provider.voiceIdentifier == null,
                   resolvedName: _resolvedName(),
@@ -132,6 +165,85 @@ class _VoiceScreenState extends State<VoiceScreen> with WidgetsBindingObserver {
         onPreview: () => _preview(id),
       );
     }).toList();
+  }
+}
+
+// ── Sections ──────────────────────────────────────────────────────────────────
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) => Text(
+        text,
+        style: const TextStyle(
+          color: kTextMuted,
+          fontSize: kFontCaption,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.1,
+        ),
+      );
+}
+
+/// The voice the app actually speaks in. Deliberately has no selection control:
+/// there is one app voice, it ships pre-rendered, and it is not a preference.
+class _AppVoiceRow extends StatelessWidget {
+  const _AppVoiceRow({required this.voice, required this.playing, required this.onPreview});
+  final String voice;
+  final bool playing;
+  final VoidCallback onPreview;
+
+  // "af_nova" -> "Nova". The prefix encodes accent and gender, which the two
+  // lines below already say in words.
+  String get _display {
+    final bare = voice.contains('_') ? voice.split('_').last : voice;
+    return bare.isEmpty ? voice : bare[0].toUpperCase() + bare.substring(1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: kSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kAccent),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_display,
+                    style: const TextStyle(
+                        color: kTextBright, fontSize: kFontLG, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                const Text('On-device neural voice',
+                    style: TextStyle(color: kTextMuted, fontSize: kFontBase)),
+                const SizedBox(height: 6),
+                const Text('What you hear during a workout.',
+                    style: TextStyle(color: kTextSubtle, fontSize: kFontBase, height: 1.3)),
+              ],
+            ),
+          ),
+          Semantics(
+            button: true,
+            label: 'Play a sample of the app voice',
+            child: GestureDetector(
+              onTap: playing ? null : onPreview,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: kMinTapTarget, minHeight: kMinTapTarget),
+                alignment: Alignment.center,
+                child: playing
+                    ? const CupertinoActivityIndicator()
+                    : const Icon(CupertinoIcons.play_circle, size: kIconMD, color: kAccent),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

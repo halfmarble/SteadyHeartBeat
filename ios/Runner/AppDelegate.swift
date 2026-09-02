@@ -115,6 +115,14 @@ import AVFoundation
             case "currentVoiceIdentifier":
                 result(WorkoutManager.shared.currentVoiceIdentifier())
 
+            case "appVoiceName":
+                result(WorkoutManager.shared.appVoiceName())
+
+            case "previewAppVoice":
+                let args = call.arguments as? [String: Any]
+                let text = args?["text"] as? String ?? "Monitoring heart rate"
+                result(WorkoutManager.shared.previewAppVoice(text: text))
+
             case "previewVoice":
                 let args = call.arguments as? [String: Any]
                 let identifier = args?["identifier"] as? String ?? ""

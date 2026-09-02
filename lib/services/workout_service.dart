@@ -116,6 +116,15 @@ class WorkoutService {
 
   /// Plays a spoken sample of [identifier] (empty = automatic/best) for the
   /// picker. Foreground only — uses a plain synthesizer, not the workout engine.
+  /// The Kokoro voice the app speaks in (e.g. "af_nova"), or '' when the
+  /// pre-rendered corpus is unavailable and it is running on the fallback.
+  Future<String> appVoiceName() async =>
+      await _method.invokeMethod<String>('appVoiceName') ?? '';
+
+  /// Plays the app's own voice from the shipped clips. False if unavailable.
+  Future<bool> previewAppVoice({String? text}) async =>
+      await _method.invokeMethod<bool>('previewAppVoice', {'text': text}) ?? false;
+
   Future<void> previewVoice(String identifier, {String? text}) async {
     await _method.invokeMethod('previewVoice', {
       'identifier': identifier,

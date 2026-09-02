@@ -55,7 +55,7 @@ fi
 
 # ---------------------------------------------------------------------------
 # ARM THE NEXT BUILD (2026-08-23, founder: "do the SteadyHeartBeat pubspec bump
-# phase too" — the same mechanism ViroFlick, StringFusor and DashTales use).
+# phase too" — the same mechanism the sibling halfmarble apps use).
 #
 # AUTO-INCREMENT WAS HERE BEFORE AND WAS REMOVED FOR A REAL REASON, recorded in
 # the header above: it "drifted the display number one ahead of CFBundleVersion

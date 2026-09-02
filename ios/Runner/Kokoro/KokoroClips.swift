@@ -10,9 +10,19 @@ import Foundation
 /// on an iPhone 16 Pro Max), no compute-unit question at all, and nothing that
 /// can behave differently in the background — it is PCM, and PCM plays.
 ///
-/// The clips are produced by `scripts/kokocli.swift -corpus` from the same weights and the
-/// same code path the live engine would have used, so this is the same voice,
-/// not an approximation of it.
+/// The clips are produced by `scripts/render_corpus_mlx.py`, which renders
+/// through KokoroSwift/MLX — NOT through the Core ML path this app runs.
+///
+/// That is deliberate and it is the reason the app sounds the way it does.
+/// Measured 2026-09-01 on identical text: the Core ML port is ~20 dB down in
+/// 2-4 kHz against MLX, which is where consonants live, and is heard as muffled
+/// and synthetic. MLX needs the GPU, which iOS refuses to a backgrounded app —
+/// but the corpus is rendered on a Mac, where that does not apply. So tier 1
+/// gets MLX quality and the phone still only plays PCM.
+///
+/// CONSEQUENCE: tier 1 and tier 2 are NO LONGER the same voice. A cue that
+/// falls through to live synthesis sounds worse, not merely later. Keep the
+/// corpus complete.
 ///
 /// Anything this cannot map falls through to the caller's existing fallback.
 /// `unmapped` records what was asked for and missed — a cue added to

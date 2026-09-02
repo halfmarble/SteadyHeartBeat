@@ -59,6 +59,34 @@ verbatim, and which replace upstream types — is in the repository's `NOTICE`,
 and each file now carries the same statement in its own header. That is what
 Apache 2.0 section 4(b) asks for, and it is what the public repo publishes.
 
+## The Core ML port is the LOW-QUALITY path (measured 2026-09-01)
+
+There is a second Swift implementation of Kokoro inference — **KokoroSwift**
+(github.com/mlalma/kokoro-ios), which runs **MLX** against the original
+`kokoro-v1_0.safetensors` rather than converting to Core ML. Same model, same
+voices, same 24 kHz. Rendering identical text through both, `af_nova`:
+
+| band | this (Core ML) | KokoroSwift/MLX |
+|---|---|---|
+| 2-4 kHz | -53.0 dB | **-32.2 dB** |
+| 4-6 kHz | -46.8 dB | **-34.0 dB** |
+| 6-8 kHz | -38.9 dB | **-31.7 dB** |
+
+2-6 kHz carries consonants and the upper formants. Being 20 dB down there is the
+"robotic, barely human" quality the founder reported, and it survives every other
+fix: it is not the AAC bitrate, not ANE float16 (CPU-only sounds the same), not
+phoneme chunking (every cue fits one chunk), not the voice-pack loader (matches
+numpy exactly), and not the local `--max-tokens 64` re-conversion (identical to
+the published 512-token segments to 0.1 dB). Those were all checked, and each
+false lead cost a round of the founder's time.
+
+**So the shipped corpus is rendered offline with KokoroSwift/MLX**, on a Mac,
+by tooling kept outside this repo. The clips are the product; this Core ML path
+is not what produced them.
+This Core ML vendoring now serves only tier 2, live synthesis of text outside the
+corpus — which is text the app never speaks. Deleting it would remove 234 MB from
+the bundle and this whole directory with it; that decision is open.
+
 ## Rules
 
 - **Never reintroduce `.all`.** If a future segment needs the GPU it does not

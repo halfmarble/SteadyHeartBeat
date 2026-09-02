@@ -1714,6 +1714,11 @@ class WorkoutProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> previewVoice(String identifier, {String? text}) =>
       _workout.previewVoice(identifier, text: text);
 
+  Future<String> appVoiceName() => _workout.appVoiceName();
+
+  Future<bool> previewAppVoice({String? text}) =>
+      _workout.previewAppVoice(text: text);
+
   Future<void> setAnnounceInterval(int seconds) async {
     announceIntervalSeconds = seconds;
     notifyListeners();
