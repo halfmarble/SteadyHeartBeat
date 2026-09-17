@@ -5,33 +5,23 @@ import Foundation
 ///
 /// SteadyHeartBeat's speech is a CLOSED SET — a heart rate, a zone, a nudge, a
 /// round number, and about ten fixed phrases. Rendering it offline buys the
-/// Kokoro voice with none of Core ML's costs: no 226 MB of weights, no
-/// on-device Espresso AOT compile (measured at ~8 minutes on an M3 and over 40
-/// on an iPhone 16 Pro Max), no compute-unit question at all, and nothing that
-/// can behave differently in the background — it is PCM, and PCM plays.
+/// Kokoro voice with no model on the phone: no weights, no on-device compile,
+/// and nothing that can behave differently in the background — it is PCM, and
+/// PCM plays.
 ///
-/// The clips are produced by `scripts/render_corpus_mlx.py`, which renders
-/// through KokoroSwift/MLX — NOT through the Core ML path this app runs.
+/// The clips are produced by an offline renderer (not part of this repository)
+/// that runs KokoroSwift/MLX on a Mac. MLX needs the GPU, which iOS refuses to a
+/// backgrounded app — but the corpus is rendered offline, where that does not
+/// apply. An earlier on-device Core ML tier was removed: measured 2026-09-01 on
+/// identical text it was ~20 dB down in 2-4 kHz, heard as muffled and synthetic.
 ///
-/// That is deliberate and it is the reason the app sounds the way it does.
-/// Measured 2026-09-01 on identical text: the Core ML port is ~20 dB down in
-/// 2-4 kHz against MLX, which is where consonants live, and is heard as muffled
-/// and synthetic. MLX needs the GPU, which iOS refuses to a backgrounded app —
-/// but the corpus is rendered on a Mac, where that does not apply. So tier 1
-/// gets MLX quality and the phone still only plays PCM.
-///
-/// CONSEQUENCE: tier 1 and tier 2 are NO LONGER the same voice. A cue that
-/// falls through to live synthesis sounds worse, not merely later. Keep the
-/// corpus complete.
-///
-/// Anything this cannot map falls through to the caller's existing fallback.
-/// `unmapped` records what was asked for and missed — a cue added to
-/// WorkoutManager without being added to the corpus shows up there rather than
-/// silently becoming a robot voice forever.
+/// There is no live Kokoro. Anything this cannot map is spoken in the system
+/// voice, so keep the corpus complete — CorpusCoverageTests enforces it. A miss
+/// logs `[kokoroclips] MISS` with the discriminator, never the text (a cue can
+/// be a heart rate).
 final class KokoroClips {
     private let directory: URL
     private let index: [String: Double]        // clip id -> seconds
-    private(set) var unmapped: Set<String> = []
     private var cache: [String: AVAudioPCMBuffer] = [:]
 
     let voice: String
@@ -73,12 +63,11 @@ final class KokoroClips {
         if let ids = Self.clipIDs(for: t) {
             var out: [AVAudioPCMBuffer] = []
             for id in ids {
-                guard let b = buffer(id) else { unmapped.insert(t); return nil }
+                guard let b = buffer(id) else { return nil }
                 out.append(b)
             }
             return out.isEmpty ? nil : out
         }
-        unmapped.insert(t)
         return nil
     }
 
@@ -91,6 +80,13 @@ final class KokoroClips {
         for (i, n) in Corpus.nudges.enumerated() where n == text { return ["nudge_\(i)"] }
         if text.hasPrefix("Round "), let r = Int(text.dropFirst(6)), r >= 1, r <= Corpus.maxRound {
             return ["round_\(r)"]
+        }
+        if text.hasPrefix("Climbed ") {
+            let words = text.split(separator: " ")
+            guard words.count == 3, let n = Int(words[1]) else { return nil }
+            if words[2] == "feet", Corpus.climbFeet.contains(n) { return ["climbft_\(n)"] }
+            if words[2] == "meters", Corpus.climbMeters.contains(n) { return ["climbm_\(n)"] }
+            return nil
         }
 
         // "N" | "N, <zone>" | "N, <zone>,"
@@ -114,10 +110,16 @@ final class KokoroClips {
     /// nudges the Bluetooth route into place.
     func fileURLs(for text: String) -> [URL]? {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let ids = Self.clipIDs(for: t) else { unmapped.insert(t); return nil }
+        // These callers play the file directly, outside AnnounceEngine._render,
+        // so this is the only place their miss is recorded.
+        guard let ids = Self.clipIDs(for: t) else {
+            NSLog("[kokoroclips] MISS file [parsed=0 shipped=0]"); return nil
+        }
         var out: [URL] = []
         for id in ids {
-            guard index[id] != nil else { unmapped.insert(t); return nil }
+            guard index[id] != nil else {
+                NSLog("[kokoroclips] MISS file [parsed=1 shipped=0]"); return nil
+            }
             out.append(directory.appendingPathComponent("\(id).m4a"))
         }
         return out.isEmpty ? nil : out
@@ -126,8 +128,8 @@ final class KokoroClips {
     private func buffer(_ id: String) -> AVAudioPCMBuffer? {
         if let hit = cache[id] { return hit }
         guard index[id] != nil else { return nil }
-        // AAC, not WAV: 29 MB of PCM becomes 5.2 MB at 32 kbps mono, and
-        // AVAudioFile decodes it with no extra code.
+        // Lossless ALAC in .m4a, not WAV: smaller on disk, and AVAudioFile
+        // decodes it with no extra code.
         let url = directory.appendingPathComponent("\(id).m4a")
         guard let file = try? AVAudioFile(forReading: url),
               let buf = AVAudioPCMBuffer(pcmFormat: file.processingFormat,

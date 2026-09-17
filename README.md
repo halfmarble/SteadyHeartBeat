@@ -58,11 +58,11 @@ Requires **AirPods with heart rate monitoring** (AirPods Pro 3 or later) and iOS
 
 ## The voice
 
-Announcements are spoken by **Kokoro-82M** — an open-weight neural text-to-speech model (Apache-2.0, built on StyleTTS 2) that runs entirely on the iPhone. Nothing to download, nothing to configure, no network at any point.
+Announcements are spoken in the voice of **Kokoro-82M** — an open-weight neural text-to-speech model (Apache-2.0, built on StyleTTS 2). Nothing to download, nothing to configure, no network at any point.
 
-What the app can say is a closed set — a heart rate, a training zone, a nudge, a round number, and a handful of fixed phrases — so it ships **pre-rendered** in that voice as ~5 MB of audio. The renderer is in the repo: `scripts/kokocli.swift -corpus` regenerates the whole set from the same weights the live tier uses (build instructions are in its header; note that Core ML synthesis is not run-to-run deterministic, so a re-render is equivalent, not identical). Anything outside that set is synthesized live on-device through Core ML (CPU and Neural Engine only — iOS will not run GPU work from a backgrounded app, and this app speaks while backgrounded).
+What the app can say is a closed set — a heart rate, a training zone, a nudge, a round number, a climb milestone, and a handful of fixed phrases — so the model never runs on the phone. The whole set is rendered offline and ships as 593 clips (~21 MB of lossless audio) in `ios/Runner/KokoroAssets/KokoroClips/`; the app only plays them, which is instant and works while backgrounded. `scripts/corpus_list.swift` prints the vocabulary as `id|text`, straight from `ios/Runner/Kokoro/Corpus.swift`, and a native test fails if any spoken cue lacks a clip.
 
-Apple's **Ava (Premium)** remains as a fallback for the rare case where a cue is not in the corpus and a neural render fails. There is no voice setting: the app speaks in one voice, and offering a choice would have meant offering voices that sound worse or take a minute to warm up mid-workout.
+Apple's **Ava (Premium)** remains as a fallback for the case where a cue is not in the corpus. There is no voice setting: the app speaks in one voice, and offering a choice would have meant offering voices that sound worse or take a minute to warm up mid-workout.
 
 ---
 
@@ -134,13 +134,6 @@ Requires a physical iPhone (HealthKit and HKWorkoutSession are unavailable in Si
 
 ```bash
 flutter pub get
-
-# Builds the Kokoro Core ML weights + voice packs into ios/Runner/KokoroAssets/
-# (234 MB, gitignored). Run this once per clone — the Xcode project references
-# those paths and the build fails without them. The pre-rendered clips are in
-# the repo already, so the app has its voice either way; this is the live
-# synthesis tier.
-ios/get-kokoro-coreml.sh
 
 flutter run --device-id <your-device-id> --release
 ```

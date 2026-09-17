@@ -535,14 +535,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
 
     // 0 = below zone 1 (under 50% max HR); 1...5 = the five training zones.
     private func _zoneNumber(forBpm bpm: Double) -> Int {
-        guard _zoneBounds.count == 5 else { return 0 }
-        let b = Int(bpm.rounded())
-        if b < _zoneBounds[0] { return 0 }
-        if b < _zoneBounds[1] { return 1 }
-        if b < _zoneBounds[2] { return 2 }
-        if b < _zoneBounds[3] { return 3 }
-        if b < _zoneBounds[4] { return 4 }
-        return 5
+        BpmCue.zone(forBpm: bpm, bounds: _zoneBounds)
     }
 
     // Build the spoken text for a BPM number, enriched with zone coaching when on.
@@ -552,16 +545,8 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
     // boosting the rendered samples is the only way to make "push"/"ease off"
     // actually hit hard instead of sounding like one more word in a list.
     private func _composeBpmAnnounce(_ bpm: Double) -> (lead: String, nudge: String?) {
-        let n = Int(bpm.rounded())
-        guard _zoneCoachingEnabled, _zoneBounds.count == 5 else { return ("\(n)", nil) }
-        let z = _zoneNumber(forBpm: bpm)
-        let zonePhrase = (z == 0 ? "below zone 1" : "zone \(z)")
-        // No target, or already on target → just name the zone, no nudge.
-        guard _targetZone > 0, z != _targetZone else {
-            return ("\(n), \(zonePhrase)", nil)
-        }
-        // Trailing comma → a beat of silence before the shouted nudge lands.
-        return ("\(n), \(zonePhrase),", (z < _targetZone) ? "push" : "ease off")
+        BpmCue.compose(bpm: bpm, coaching: _zoneCoachingEnabled,
+                       bounds: _zoneBounds, targetZone: _targetZone)
     }
 
     // MARK: - Boxing round timer
@@ -981,8 +966,8 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         // background and lets us duck Music over AirPods.
         _announce.start()
         // Immediate confirmation that monitoring is live — also warms up the engine
-        // so the first BPM cue plays without first-render latency. Synthesized live
-        // in the user's chosen voice (no pre-recorded clips).
+        // so the first BPM cue plays without first-render latency. A pre-rendered
+        // clip, like every cue in Corpus.
         speak(text: "Monitoring heart rate")
 
         _latestBpm = 0
@@ -1499,4 +1484,45 @@ enum AnnounceQueue {
         }
         return queue + [incoming]
     }
+}
+
+/// The spoken text of a heart-rate cue, pulled out of WorkoutManager so the
+/// strings it builds can be checked against the pre-rendered corpus. Every BPM
+/// cue passes through `compose` (the native timer, gate ticks, and Dart's
+/// `speak`), at render time, via AnnounceEngine.composeBpm.
+enum BpmCue {
+    /// 0 = below zone 1 (under 50% max HR); 1...5 = the five training zones.
+    static func zone(forBpm bpm: Double, bounds: [Int]) -> Int {
+        guard bounds.count == 5 else { return 0 }
+        let b = Int(bpm.rounded())
+        if b < bounds[0] { return 0 }
+        if b < bounds[1] { return 1 }
+        if b < bounds[2] { return 2 }
+        if b < bounds[3] { return 3 }
+        if b < bounds[4] { return 4 }
+        return 5
+    }
+
+    /// The lead phrase (number + zone) and, when steering is needed, the bare
+    /// nudge word — AnnounceEngine renders it as `nudgeUtterance(_:)`.
+    static func compose(bpm: Double, coaching: Bool, bounds: [Int], targetZone: Int)
+        -> (lead: String, nudge: String?) {
+        let n = Int(bpm.rounded())
+        // The one place an implausible reading is replaced — no number, no
+        // zone, no nudge built on a glitch.
+        guard Corpus.bpmRange.contains(n) else { return (Corpus.unclearReading, nil) }
+        guard coaching, bounds.count == 5 else { return ("\(n)", nil) }
+        let z = zone(forBpm: bpm, bounds: bounds)
+        let zonePhrase = (z == 0 ? "below zone 1" : "zone \(z)")
+        // No target, or already on target → just name the zone, no nudge.
+        guard targetZone > 0, z != targetZone else {
+            return ("\(n), \(zonePhrase)", nil)
+        }
+        // Trailing comma → a beat of silence before the shouted nudge lands.
+        return ("\(n), \(zonePhrase),", (z < targetZone) ? "push" : "ease off")
+    }
+
+    /// "!" sharpens the intonation. The clips were rendered with it
+    /// (Corpus.nudges), so this and the corpus must agree.
+    static func nudgeUtterance(_ nudge: String) -> String { "\(nudge)!" }
 }

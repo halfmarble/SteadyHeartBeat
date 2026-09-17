@@ -331,148 +331,6 @@ final class NoGateEngineTests: XCTestCase {
     }
 }
 
-// MARK: - Kokoro Core ML compute units
-
-/// Pins the one Kokoro rule whose violation is SILENT: Core ML must never be
-/// allowed to schedule a segment on the GPU.
-///
-/// iOS refuses GPU work from a backgrounded app
-/// (`kIOGPUCommandBufferCallbackErrorBackgroundExecutionNotPermitted` — 80
-/// failures in 80 attempts, measured on device 2026-08-28). SteadyHeartBeat
-/// speaks *while backgrounded*, so a GPU-eligible segment is not a slow cue,
-/// it is a missing one — and nothing in a build, a launch, or a foreground
-/// test would show it. Upstream kokoro-swift ships `.all`, which permits
-/// Metal; the vendored copy asks for `.cpuAndNeuralEngine` / `.cpuOnly`
-/// instead. Background of the whole decision: `ios/Runner/Kokoro/VENDOR.md`.
-///
-/// **Why this reads source instead of calling the code.** Both compute-unit
-/// decisions sit inside methods that cannot run without the 234 MB of
-/// gitignored model segments, and `MLModelConfiguration.computeUnits` is not
-/// reachable from outside `SegmentedCoreMLModel` in any case. A scan is what
-/// is left — the same tactic `test/fda_copy_scan_test.dart` uses on the Dart
-/// side for a rule the type system cannot carry.
-///
-/// What it does NOT pin: which segments get the ANE and which get CPU-only.
-/// That mapping is a speed choice and may legitimately change. `.all` and
-/// `.cpuAndGPU` may not.
-final class KokoroComputeUnitsTests: XCTestCase {
-
-    /// The two `MLComputeUnits` cases that keep Metal out of the process.
-    private static let allowed: Set<String> = ["cpuOnly", "cpuAndNeuralEngine"]
-
-    /// Every case name, so the scan can tell "this RHS names a compute unit"
-    /// from "this RHS happens to contain a dot".
-    private static let everyCase: Set<String> = ["all", "cpuOnly", "cpuAndGPU", "cpuAndNeuralEngine"]
-
-    /// `ios/Runner/`, derived from this file's own compile-time path so the
-    /// scan follows whichever checkout or worktree the tests were built from.
-    private static var runnerSource: URL {
-        URL(fileURLWithPath: #filePath)      // ios/RunnerTests/RunnerTests.swift
-            .deletingLastPathComponent()     // ios/RunnerTests
-            .deletingLastPathComponent()     // ios
-            .appendingPathComponent("Runner")
-    }
-
-    private static func swiftSources() throws -> [(name: String, text: String)] {
-        guard let walker = FileManager.default.enumerator(
-            at: runnerSource, includingPropertiesForKeys: nil) else { return [] }
-        var out: [(name: String, text: String)] = []
-        for case let url as URL in walker where url.pathExtension == "swift" {
-            out.append((url.lastPathComponent, try String(contentsOf: url, encoding: .utf8)))
-        }
-        return out
-    }
-
-    /// The right-hand side of every `computeUnits = …`, to end of line.
-    private static func computeUnitAssignments(in text: String) -> [String] {
-        matches(#"computeUnits\s*=\s*(.+)"#, in: text)
-    }
-
-    /// Which `MLComputeUnits` cases a right-hand side can produce. A ternary
-    /// yields both of its arms, and both have to be allowed.
-    private static func casesNamed(in rhs: String) -> Set<String> {
-        Set(matches(#"\.([A-Za-z]+)"#, in: rhs).filter { everyCase.contains($0) })
-    }
-
-    private static func matches(_ pattern: String, in text: String) -> [String] {
-        let re = try! NSRegularExpression(pattern: pattern)
-        let ns = text as NSString
-        return re.matches(in: text, range: NSRange(location: 0, length: ns.length))
-            .map { ns.substring(with: $0.range(at: 1)) }
-    }
-
-    private static func count(_ pattern: String, in text: String) -> Int {
-        let re = try! NSRegularExpression(pattern: pattern)
-        return re.numberOfMatches(in: text, range: NSRange(location: 0, length: (text as NSString).length))
-    }
-
-    /// No `computeUnits` assignment anywhere under `ios/Runner/` may permit
-    /// the GPU.
-    func testNoComputeUnitsAssignmentPermitsTheGPU() throws {
-        let sources = try Self.swiftSources()
-        XCTAssertFalse(sources.isEmpty,
-                       "scanned nothing under \(Self.runnerSource.path) — this test would pass vacuously")
-
-        var checked = 0
-        for (name, text) in sources {
-            for rhs in Self.computeUnitAssignments(in: text) {
-                checked += 1
-                let named = Self.casesNamed(in: rhs)
-                XCTAssertFalse(named.isEmpty, """
-                    \(name): could not read an MLComputeUnits case out of \
-                    'computeUnits = \(rhs)'. If the value now comes from a \
-                    variable, this scan can no longer see it — pin it at the \
-                    definition instead of deleting the check.
-                    """)
-                for unit in named.sorted() {
-                    XCTAssertTrue(Self.allowed.contains(unit), """
-                        \(name): 'computeUnits = \(rhs)' permits .\(unit). \
-                        Only \(Self.allowed.sorted().map { ".\($0)" }.joined(separator: ", ")) \
-                        are allowed — .all and .cpuAndGPU let Core ML schedule on the GPU, \
-                        and iOS refuses GPU work from a backgrounded app. This app speaks \
-                        while backgrounded, so that is a silent cue mid-workout. \
-                        See ios/Runner/Kokoro/VENDOR.md.
-                        """)
-                }
-            }
-        }
-        XCTAssertGreaterThan(checked, 0,
-                             "found no computeUnits assignments at all — has the Core ML path moved?")
-    }
-
-    /// Guards the guard: if `SegmentedCoreMLModel.swift` is renamed, moved out
-    /// of `ios/Runner/`, or stops setting compute units, the scan above starts
-    /// checking nothing and would go green forever.
-    func testTheCoreMLModelIsActuallyBeingScanned() throws {
-        let sources = try Self.swiftSources()
-        guard let model = sources.first(where: { $0.name == "SegmentedCoreMLModel.swift" }) else {
-            return XCTFail("""
-                SegmentedCoreMLModel.swift is not under \(Self.runnerSource.path) — \
-                testNoComputeUnitsAssignmentPermitsTheGPU is checking nothing.
-                """)
-        }
-        XCTAssertFalse(Self.computeUnitAssignments(in: model.text).isEmpty, """
-            SegmentedCoreMLModel.swift sets no compute units. A bare \
-            MLModelConfiguration() defaults to .all, which permits the GPU.
-            """)
-    }
-
-    /// A configuration created and never assigned is the same bug wearing a
-    /// different hat: `MLModelConfiguration()` defaults to `.all`.
-    func testEveryModelConfigurationSetsItsComputeUnits() throws {
-        for (name, text) in try Self.swiftSources() {
-            let configurations = Self.count(#"MLModelConfiguration\s*\("#, in: text)
-            guard configurations > 0 else { continue }
-            let assignments = Self.computeUnitAssignments(in: text).count
-            XCTAssertGreaterThanOrEqual(assignments, configurations, """
-                \(name): \(configurations) MLModelConfiguration(s) but \(assignments) \
-                computeUnits assignment(s). One was left at the default, which is .all \
-                — GPU-eligible, and refused in the background.
-                """)
-        }
-    }
-}
-
 // MARK: - Render cache
 
 /// The cache hands buffers back to the audio engine, so the two things that
@@ -534,8 +392,8 @@ final class RenderCacheTests: XCTestCase {
 /// edit. No compiler complained, no test failed, and the only symptom was a
 /// greeting nobody heard.
 ///
-/// Source scan for the same reason as KokoroComputeUnitsTests: the two sides
-/// are different languages and the contract between them is a string.
+/// A source scan, because the two sides are different languages and the
+/// contract between them is a string.
 final class ChannelCoverageTests: XCTestCase {
 
     private static var repoRoot: URL {
@@ -576,5 +434,357 @@ final class ChannelCoverageTests: XCTestCase {
             These fail silently — several call sites do not await the result — so \
             the symptom is a feature that simply does nothing.
             """)
+    }
+}
+
+// MARK: - Spoken-cue clip coverage
+
+/// Every string the app speaks must have a pre-rendered clip.
+///
+/// A cue without one does not fail: it falls through to the system voice (Ava),
+/// a different voice mid-workout, and only a runtime log records it — which is how the round-timer
+/// countdown, rest, climb milestones and every gated-phase cue shipped in the
+/// wrong voice while `Corpus.swift` claimed to be the whole vocabulary.
+///
+/// A source scan, because the cue strings sit inside workout-session code that
+/// cannot run on the simulator.
+final class CorpusCoverageTests: XCTestCase {
+
+    private static var repoRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()      // ios/RunnerTests
+            .deletingLastPathComponent()      // ios
+            .deletingLastPathComponent()      // repo
+    }
+
+    private static func read(_ path: String) -> String? {
+        try? String(contentsOf: repoRoot.appendingPathComponent(path), encoding: .utf8)
+    }
+
+    /// Every double-quoted literal in `code`, with each `\( … )` interpolation
+    /// replaced by `{}` — so `"Climbed \(Int(m)) meters"` becomes
+    /// `Climbed {} meters`. Nested parentheses inside an interpolation are
+    /// counted, which a regex cannot do.
+    static func swiftLiterals(in code: String) -> [String] {
+        var out: [String] = []
+        let c = Array(code)
+        var i = 0
+        while i < c.count {
+            guard c[i] == "\"" else { i += 1; continue }
+            var s = ""
+            i += 1
+            while i < c.count, c[i] != "\"" {
+                if c[i] == "\\", i + 1 < c.count, c[i + 1] == "(" {
+                    var depth = 1
+                    i += 2
+                    while i < c.count, depth > 0 {
+                        if c[i] == "(" { depth += 1 } else if c[i] == ")" { depth -= 1 }
+                        i += 1
+                    }
+                    s += "{}"
+                    continue
+                }
+                if c[i] == "\\", i + 1 < c.count { s.append(c[i + 1]); i += 2; continue }
+                s.append(c[i])
+                i += 1
+            }
+            out.append(s)
+            i += 1
+        }
+        return out
+    }
+
+    /// Single-quoted Dart literals, `${…}` / `$name` replaced by `{}`.
+    static func dartLiterals(in code: String) -> [String] {
+        let re = try! NSRegularExpression(pattern: #"'((?:[^'\\]|\\.)*)'"#)
+        let ns = code as NSString
+        return re.matches(in: code, range: NSRange(location: 0, length: ns.length)).map {
+            ns.substring(with: $0.range(at: 1))
+                .replacingOccurrences(of: #"\$\{[^}]*\}"#, with: "{}", options: .regularExpression)
+                .replacingOccurrences(of: #"\$[A-Za-z_]\w*"#, with: "{}", options: .regularExpression)
+        }
+    }
+
+    /// Every spoken template, with where it was found.
+    static func spokenTemplates() throws -> [(template: String, site: String)] {
+        var out: [(String, String)] = []
+
+        // Native: the literal arguments of every speak(…) call. The gate engine's
+        // own phase keys ("warmup") are arguments to exitCue/enterPhase, not
+        // speech, so those calls are cut out of the line first.
+        for path in ["ios/Runner/WorkoutManager.swift", "ios/Runner/Plus/GateEngine.swift"] {
+            guard let code = read(path) else { continue }
+            for (n, line) in code.components(separatedBy: "\n").enumerated()
+            where line.contains("speak(") && !line.contains("func speak") && !line.contains("_previewSynth") {
+                let spoken = line.replacingOccurrences(
+                    of: #"(exitCue|enterPhase|tick)\([^)]*\)"#, with: "", options: .regularExpression)
+                for lit in swiftLiterals(in: spoken) { out.append((lit, "\(path):\(n + 1)")) }
+            }
+        }
+
+        // Gate cues are RETURNED, then spoken by WorkoutManager: `case "x": return …`.
+        if let gates = read("ios/Runner/Plus/GateEngine.swift") {
+            for (n, line) in gates.components(separatedBy: "\n").enumerated()
+            where line.range(of: #"(case\s+"[a-z]+"|default)\s*:\s*return\s+"#, options: .regularExpression) != nil {
+                let rhs = String(line[line.range(of: "return")!.upperBound...])
+                for lit in swiftLiterals(in: rhs) {
+                    out.append((lit, "ios/Runner/Plus/GateEngine.swift:\(n + 1)"))
+                }
+            }
+        }
+
+        // Dart: `_tts.speak('…')`, and the greeting — literals in the statement
+        // that builds the text handed to speakGreeting (the lines just above it).
+        if let dart = read("lib/providers/workout_provider.dart") {
+            let lines = dart.components(separatedBy: "\n")
+            for (n, line) in lines.enumerated() {
+                if line.contains("_tts.speak(") {
+                    for lit in dartLiterals(in: line) { out.append((lit, "workout_provider.dart:\(n + 1)")) }
+                }
+                if line.contains("speakGreeting(") {
+                    for back in max(0, n - 4)..<n {
+                        for lit in dartLiterals(in: lines[back]) where lit.count > 20 {
+                            out.append((lit, "workout_provider.dart:\(back + 1)"))
+                        }
+                    }
+                }
+            }
+        }
+        return out
+    }
+
+    func testEverySpokenStringHasAClip() throws {
+        let templates = try Self.spokenTemplates()
+        XCTAssertGreaterThan(templates.count, 12, "the scan found almost nothing — it is checking nothing")
+        XCTAssertTrue(templates.contains { $0.template.hasPrefix("Welcome to SteadyHeartBeat") },
+                      "the greeting scan found no greeting — the Dart call site moved")
+        // The real gate engine returns its cues; the public stub has none. When
+        // the real one is present, the scan must have found every cue it returns.
+        if let gates = Self.read("ios/Runner/Plus/GateEngine.swift"), gates.contains("func exitCue") {
+            let found = templates.filter { $0.site.hasPrefix("ios/Runner/Plus/GateEngine.swift") }
+            XCTAssertGreaterThanOrEqual(found.count, 8, "gate-cue scan found \(found.count) cues — the return pattern changed")
+        }
+
+        var missing: [String] = []
+        for (template, site) in templates {
+            let expanded: [String]
+            switch template {
+            case "{}":
+                continue   // a BPM: composed by _composeBpmAnnounce, covered below
+            case "Round {}":
+                expanded = (1...Corpus.maxRound).map { "Round \($0)" }
+            case "Climbed {} feet":
+                expanded = Corpus.climbFeet.map { "Climbed \($0) feet" }
+            case "Climbed {} meters":
+                expanded = Corpus.climbMeters.map { "Climbed \($0) meters" }
+            default:
+                if template.contains("{}") {
+                    missing.append("\(site): unrecognised template \"\(template)\" — add it here and to Corpus")
+                    continue
+                }
+                expanded = [template]
+            }
+            for text in expanded where KokoroClips.clipIDs(for: text) == nil {
+                missing.append("\(site): \"\(text)\"")
+            }
+        }
+        XCTAssertTrue(missing.isEmpty, """
+            Spoken with no pre-rendered clip, so it plays in a different voice:
+            \(missing.joined(separator: "\n"))
+            Add it to Corpus.swift (fixedPhrases is append-only) and render the new clips.
+            """)
+    }
+
+    /// The climb clips are one per milestone, so the milestone step in
+    /// WorkoutManager and the stride in Corpus must agree.
+    func testClimbMilestoneStepsMatchCorpus() throws {
+        let code = try XCTUnwrap(Self.read("ios/Runner/WorkoutManager.swift"))
+        func step(_ name: String) -> Int? {
+            guard let r = code.range(of: name + #":\s*Double\s*=\s*(\d+)"#, options: .regularExpression)
+            else { return nil }
+            return Int(code[r].split(separator: "=").last!.trimmingCharacters(in: .whitespaces))
+        }
+        XCTAssertEqual(step("_ascentAnnounceStepFeet"), Corpus.climbFeet[1] - Corpus.climbFeet[0])
+        XCTAssertEqual(step("_ascentAnnounceStepMeters"), Corpus.climbMeters[1] - Corpus.climbMeters[0])
+    }
+
+    /// The round picker's cap must not exceed the rendered rounds.
+    func testRoundCapWithinCorpus() throws {
+        let dart = try XCTUnwrap(Self.read("lib/providers/workout_provider.dart"))
+        let re = try NSRegularExpression(pattern: #"totalRounds\s*=\s*rounds\.clamp\(\s*0\s*,\s*(\d+)\s*\)"#)
+        let ns = dart as NSString
+        let caps = re.matches(in: dart, range: NSRange(location: 0, length: ns.length))
+            .compactMap { Int(ns.substring(with: $0.range(at: 1))) }
+        XCTAssertFalse(caps.isEmpty, "found no round clamp — the scan is checking nothing")
+        for cap in caps { XCTAssertLessThanOrEqual(cap, Corpus.maxRound) }
+    }
+
+    func testEveryBpmInRangeAndTheUnclearReadingHaveClips() {
+        for n in Corpus.bpmRange {
+            for text in ["\(n)", "\(n),", "\(n), zone 3", "\(n), below zone 1,"] {
+                XCTAssertNotNil(KokoroClips.clipIDs(for: text), text)
+            }
+        }
+        XCTAssertNil(KokoroClips.clipIDs(for: "\(Corpus.bpmRange.lowerBound - 1)"))
+        XCTAssertNil(KokoroClips.clipIDs(for: "\(Corpus.bpmRange.upperBound + 1)"))
+        XCTAssertNotNil(KokoroClips.clipIDs(for: Corpus.unclearReading))
+    }
+
+    /// Out-of-range readings are replaced before any number, zone or nudge is
+    /// built — including with coaching on and a target set, where a glitch
+    /// would otherwise also shout "push!".
+    func testOutOfRangeBpmIsReplacedBeforeComposition() {
+        let bounds = [95, 114, 133, 152, 171]
+        for bpm in [0, 24.49, 250.5, 300] {
+            for coaching in [false, true] {
+                let c = BpmCue.compose(bpm: bpm, coaching: coaching, bounds: bounds, targetZone: 3)
+                XCTAssertEqual(c.lead, Corpus.unclearReading, "bpm \(bpm)")
+                XCTAssertNil(c.nudge, "bpm \(bpm)")
+            }
+        }
+        // The edges round the same way the spoken number does.
+        XCTAssertEqual(BpmCue.compose(bpm: 24.5, coaching: false, bounds: [], targetZone: 0).lead, "25")
+        XCTAssertEqual(BpmCue.compose(bpm: 250.49, coaching: false, bounds: [], targetZone: 0).lead, "250")
+    }
+
+    /// Everything the composer can actually produce has a clip: every lead and
+    /// every nudge as AnnounceEngine renders it. The hand-written strings in
+    /// testEveryBpmInRangeAndTheUnclearReadingHaveClips cannot catch the
+    /// composer and the corpus drifting apart (a new zone phrase, a nudge word,
+    /// the "!" that turns "push" into the rendered "push!").
+    func testEveryComposedBpmCueHasAClip() {
+        // Realistic zones, and zones pushed to the corpus edges so zone 0 and
+        // zone 5 are reached at both ends of bpmRange.
+        let boundSets = [[95, 114, 133, 152, 171], [26, 27, 28, 29, 249], []]
+        var checked = 0
+        var missing: [String] = []
+        for bounds in boundSets {
+            for coaching in [false, true] {
+                for target in 0...5 {
+                    for tenths in stride(from: 0, through: 3_000, by: 5) {
+                        let c = BpmCue.compose(bpm: Double(tenths) / 10, coaching: coaching,
+                                               bounds: bounds, targetZone: target)
+                        checked += 1
+                        if KokoroClips.clipIDs(for: c.lead) == nil { missing.append(c.lead) }
+                        if let n = c.nudge, KokoroClips.clipIDs(for: BpmCue.nudgeUtterance(n)) == nil {
+                            missing.append(BpmCue.nudgeUtterance(n))
+                        }
+                    }
+                }
+            }
+        }
+        XCTAssertGreaterThan(checked, 20_000)
+        XCTAssertTrue(missing.isEmpty, "composed cues with no clip: \(Set(missing).sorted().prefix(20))")
+    }
+
+    func testZoneBoundaries() {
+        let b = [95, 114, 133, 152, 171]
+        XCTAssertEqual(BpmCue.zone(forBpm: 94, bounds: b), 0)
+        XCTAssertEqual(BpmCue.zone(forBpm: 94.5, bounds: b), 1)   // rounds like the spoken number
+        XCTAssertEqual(BpmCue.zone(forBpm: 133, bounds: b), 3)
+        XCTAssertEqual(BpmCue.zone(forBpm: 171, bounds: b), 5)
+        XCTAssertEqual(BpmCue.zone(forBpm: 150, bounds: [1, 2, 3]), 0, "malformed bounds name no zone")
+        let steer = BpmCue.compose(bpm: 100, coaching: true, bounds: b, targetZone: 3)
+        XCTAssertEqual(steer.lead, "100, zone 1,")
+        XCTAssertEqual(steer.nudge, "push")
+        XCTAssertEqual(BpmCue.compose(bpm: 180, coaching: true, bounds: b, targetZone: 3).nudge, "ease off")
+        XCTAssertEqual(BpmCue.compose(bpm: 140, coaching: true, bounds: b, targetZone: 3).lead, "140, zone 3")
+        XCTAssertEqual(BpmCue.compose(bpm: 140, coaching: false, bounds: b, targetZone: 3).lead, "140")
+    }
+
+    /// The scan above reads LITERALS. A call site that speaks a variable, or a
+    /// new file that speaks at all, yields no literal and would pass silently —
+    /// the same failure the scan exists to prevent. Every call site must be
+    /// one the scan reads or one listed here, with the reason it is covered.
+    func testEverySpeechCallSiteIsVisibleToTheScan() throws {
+        var blind: [String] = []
+
+        // Native. Non-literal arguments that are covered elsewhere:
+        //   cue / $0 / enterPhase(…)  gate-engine cues, scanned at their `return`
+        //   text                     AppDelegate's MethodChannel passthrough from Dart
+        let covered = #"speak\((text:\s*)?(cue\)|\$0\)|_gates\.enterPhase\(|text, force: force\))"#
+        let runner = Self.repoRoot.appendingPathComponent("ios/Runner")
+        let files = FileManager.default.enumerator(at: runner, includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" } ?? []
+        XCTAssertGreaterThan(files.count, 5, "found no Swift sources — the scan is checking nothing")
+        for url in files {
+            let rel = String(url.path.dropFirst(Self.repoRoot.path.count + 1))
+            let code = try String(contentsOf: url, encoding: .utf8)
+            for (n, line) in code.components(separatedBy: "\n").enumerated() {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.hasPrefix("//"), line.contains("speak("),
+                      !line.contains("func speak"), !line.contains("_previewSynth") else { continue }
+                if line.range(of: covered, options: .regularExpression) != nil { continue }
+                let scanned = rel == "ios/Runner/WorkoutManager.swift" || rel == "ios/Runner/Plus/GateEngine.swift"
+                let spoken = line.replacingOccurrences(
+                    of: #"(exitCue|enterPhase|tick)\([^)]*\)"#, with: "", options: .regularExpression)
+                if !scanned || Self.swiftLiterals(in: spoken).isEmpty {
+                    blind.append("\(rel):\(n + 1): \(trimmed)")
+                }
+            }
+            // Clip lookups outside the announce path play a named phrase directly.
+            for (n, line) in code.components(separatedBy: "\n").enumerated() {
+                guard let r = line.range(of: #"(fileURLs|buffers)\(for: [A-Za-z_.]+\)"#, options: .regularExpression),
+                      !line.contains("func ") else { continue }
+                let arg = String(line[r]).components(separatedBy: "for: ")[1].dropLast()
+                if arg == "text" || arg == "utt.speechString" { continue }   // passthroughs
+                guard let def = code.range(of: "let \(arg) = \"([^\"]*)\"", options: .regularExpression) else {
+                    blind.append("\(rel):\(n + 1): clip lookup of \(arg), not a literal"); continue
+                }
+                let phrase = String(code[def]).components(separatedBy: "\"")[1]
+                let ids = KokoroClips.clipIDs(for: phrase)
+                if ids == nil { blind.append("\(rel):\(n + 1): \"\(phrase)\" has no clip") }
+                // `.first` plays one file: a phrase stitched from several clips would be cut short.
+                if line.contains(")?.first"), let ids, ids.count != 1 {
+                    blind.append("\(rel):\(n + 1): \"\(phrase)\" is \(ids.count) clips but only the first plays")
+                }
+            }
+        }
+
+        // Dart: only workout_provider.dart speaks, and every call carries a literal.
+        let lib = Self.repoRoot.appendingPathComponent("lib")
+        let dartFiles = FileManager.default.enumerator(at: lib, includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }.filter { $0.pathExtension == "dart" } ?? []
+        XCTAssertGreaterThan(dartFiles.count, 5, "found no Dart sources — the scan is checking nothing")
+        for url in dartFiles {
+            let rel = String(url.path.dropFirst(Self.repoRoot.path.count + 1))
+            let code = try String(contentsOf: url, encoding: .utf8)
+            for (n, line) in code.components(separatedBy: "\n").enumerated()
+            where line.range(of: #"\.(speak|speakGreeting)\("#, options: .regularExpression) != nil
+                && !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") {
+                if rel != "lib/providers/workout_provider.dart" {
+                    blind.append("\(rel):\(n + 1): speaks from a file the scan does not read")
+                } else if line.contains("_tts.speak("), Self.dartLiterals(in: line).isEmpty {
+                    blind.append("\(rel):\(n + 1): speaks a non-literal")
+                }
+            }
+        }
+
+        XCTAssertTrue(blind.isEmpty, """
+            Speech the corpus scan cannot see:
+            \(blind.joined(separator: "\n"))
+            Speak a literal, extend testEverySpokenStringHasAClip to read it, \
+            or list it here with the reason it is covered.
+            """)
+    }
+
+    /// Every id the corpus declares was actually rendered and shipped.
+    func testEveryCorpusClipIsShipped() throws {
+        let dir = Self.repoRoot.appendingPathComponent("ios/Runner/KokoroAssets/KokoroClips")
+        let data = try Data(contentsOf: dir.appendingPathComponent("clips.json"))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(json["voice"] as? String, Corpus.defaultVoice)
+        let clips = try XCTUnwrap(json["clips"] as? [String: [String: Any]])
+
+        let all = Corpus.all()
+        XCTAssertEqual(Set(all.map(\.id)).count, all.count, "duplicate clip ids in Corpus")
+        var problems: [String] = []
+        for (id, text) in all {
+            if (clips[id]?["text"] as? String) != text { problems.append("\(id): not in clips.json with text \"\(text)\"") }
+            if !FileManager.default.fileExists(atPath: dir.appendingPathComponent("\(id).m4a").path) {
+                problems.append("\(id).m4a missing")
+            }
+        }
+        XCTAssertTrue(problems.isEmpty, "\(problems.count) unrendered clips:\n" + problems.prefix(30).joined(separator: "\n"))
     }
 }

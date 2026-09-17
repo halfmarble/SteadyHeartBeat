@@ -1,5 +1,325 @@
 {
  "clips": {
+  "climbft_100": {
+   "seconds": 1.668792,
+   "text": "Climbed 100 feet"
+  },
+  "climbft_1000": {
+   "seconds": 1.710875,
+   "text": "Climbed 1000 feet"
+  },
+  "climbft_1100": {
+   "seconds": 1.859333,
+   "text": "Climbed 1100 feet"
+  },
+  "climbft_1200": {
+   "seconds": 1.783833,
+   "text": "Climbed 1200 feet"
+  },
+  "climbft_1300": {
+   "seconds": 1.89875,
+   "text": "Climbed 1300 feet"
+  },
+  "climbft_1400": {
+   "seconds": 1.898667,
+   "text": "Climbed 1400 feet"
+  },
+  "climbft_1500": {
+   "seconds": 1.898625,
+   "text": "Climbed 1500 feet"
+  },
+  "climbft_1600": {
+   "seconds": 1.937375,
+   "text": "Climbed 1600 feet"
+  },
+  "climbft_1700": {
+   "seconds": 2.037375,
+   "text": "Climbed 1700 feet"
+  },
+  "climbft_1800": {
+   "seconds": 1.898708,
+   "text": "Climbed 1800 feet"
+  },
+  "climbft_1900": {
+   "seconds": 1.922125,
+   "text": "Climbed 1900 feet"
+  },
+  "climbft_200": {
+   "seconds": 1.625625,
+   "text": "Climbed 200 feet"
+  },
+  "climbft_2000": {
+   "seconds": 1.701792,
+   "text": "Climbed 2000 feet"
+  },
+  "climbft_2100": {
+   "seconds": 1.898042,
+   "text": "Climbed 2100 feet"
+  },
+  "climbft_2200": {
+   "seconds": 1.94825,
+   "text": "Climbed 2200 feet"
+  },
+  "climbft_2300": {
+   "seconds": 1.999167,
+   "text": "Climbed 2300 feet"
+  },
+  "climbft_2400": {
+   "seconds": 1.948083,
+   "text": "Climbed 2400 feet"
+  },
+  "climbft_2500": {
+   "seconds": 1.926167,
+   "text": "Climbed 2500 feet"
+  },
+  "climbft_2600": {
+   "seconds": 2.025417,
+   "text": "Climbed 2600 feet"
+  },
+  "climbft_2700": {
+   "seconds": 2.062375,
+   "text": "Climbed 2700 feet"
+  },
+  "climbft_2800": {
+   "seconds": 1.97525,
+   "text": "Climbed 2800 feet"
+  },
+  "climbft_2900": {
+   "seconds": 1.993333,
+   "text": "Climbed 2900 feet"
+  },
+  "climbft_300": {
+   "seconds": 1.653042,
+   "text": "Climbed 300 feet"
+  },
+  "climbft_3000": {
+   "seconds": 1.736667,
+   "text": "Climbed 3000 feet"
+  },
+  "climbft_3100": {
+   "seconds": 1.924292,
+   "text": "Climbed 3100 feet"
+  },
+  "climbft_3200": {
+   "seconds": 1.9735,
+   "text": "Climbed 3200 feet"
+  },
+  "climbft_3300": {
+   "seconds": 1.99925,
+   "text": "Climbed 3300 feet"
+  },
+  "climbft_3400": {
+   "seconds": 2.02425,
+   "text": "Climbed 3400 feet"
+  },
+  "climbft_3500": {
+   "seconds": 2.04925,
+   "text": "Climbed 3500 feet"
+  },
+  "climbft_3600": {
+   "seconds": 2.044458,
+   "text": "Climbed 3600 feet"
+  },
+  "climbft_3700": {
+   "seconds": 2.137417,
+   "text": "Climbed 3700 feet"
+  },
+  "climbft_3800": {
+   "seconds": 1.976875,
+   "text": "Climbed 3800 feet"
+  },
+  "climbft_3900": {
+   "seconds": 2.049208,
+   "text": "Climbed 3900 feet"
+  },
+  "climbft_400": {
+   "seconds": 1.64375,
+   "text": "Climbed 400 feet"
+  },
+  "climbft_4000": {
+   "seconds": 1.800708,
+   "text": "Climbed 4000 feet"
+  },
+  "climbft_4100": {
+   "seconds": 1.924208,
+   "text": "Climbed 4100 feet"
+  },
+  "climbft_4200": {
+   "seconds": 1.949333,
+   "text": "Climbed 4200 feet"
+  },
+  "climbft_4300": {
+   "seconds": 1.999292,
+   "text": "Climbed 4300 feet"
+  },
+  "climbft_4400": {
+   "seconds": 2.049125,
+   "text": "Climbed 4400 feet"
+  },
+  "climbft_4500": {
+   "seconds": 2.049167,
+   "text": "Climbed 4500 feet"
+  },
+  "climbft_4600": {
+   "seconds": 1.974167,
+   "text": "Climbed 4600 feet"
+  },
+  "climbft_4700": {
+   "seconds": 2.087333,
+   "text": "Climbed 4700 feet"
+  },
+  "climbft_4800": {
+   "seconds": 1.951333,
+   "text": "Climbed 4800 feet"
+  },
+  "climbft_4900": {
+   "seconds": 2.062417,
+   "text": "Climbed 4900 feet"
+  },
+  "climbft_500": {
+   "seconds": 1.671458,
+   "text": "Climbed 500 feet"
+  },
+  "climbft_5000": {
+   "seconds": 1.80175,
+   "text": "Climbed 5000 feet"
+  },
+  "climbft_600": {
+   "seconds": 1.696458,
+   "text": "Climbed 600 feet"
+  },
+  "climbft_700": {
+   "seconds": 1.7505,
+   "text": "Climbed 700 feet"
+  },
+  "climbft_800": {
+   "seconds": 1.722,
+   "text": "Climbed 800 feet"
+  },
+  "climbft_900": {
+   "seconds": 1.661417,
+   "text": "Climbed 900 feet"
+  },
+  "climbm_100": {
+   "seconds": 1.751167,
+   "text": "Climbed 100 meters"
+  },
+  "climbm_1000": {
+   "seconds": 1.784542,
+   "text": "Climbed 1000 meters"
+  },
+  "climbm_1050": {
+   "seconds": 1.762792,
+   "text": "Climbed 1050 meters"
+  },
+  "climbm_1100": {
+   "seconds": 1.97225,
+   "text": "Climbed 1100 meters"
+  },
+  "climbm_1150": {
+   "seconds": 1.983333,
+   "text": "Climbed 1150 meters"
+  },
+  "climbm_1200": {
+   "seconds": 1.888583,
+   "text": "Climbed 1200 meters"
+  },
+  "climbm_1250": {
+   "seconds": 1.798583,
+   "text": "Climbed 1250 meters"
+  },
+  "climbm_1300": {
+   "seconds": 2.038208,
+   "text": "Climbed 1300 meters"
+  },
+  "climbm_1350": {
+   "seconds": 2.023917,
+   "text": "Climbed 1350 meters"
+  },
+  "climbm_1400": {
+   "seconds": 2.038167,
+   "text": "Climbed 1400 meters"
+  },
+  "climbm_1450": {
+   "seconds": 1.936167,
+   "text": "Climbed 1450 meters"
+  },
+  "climbm_150": {
+   "seconds": 1.90225,
+   "text": "Climbed 150 meters"
+  },
+  "climbm_1500": {
+   "seconds": 2.038083,
+   "text": "Climbed 1500 meters"
+  },
+  "climbm_200": {
+   "seconds": 1.659542,
+   "text": "Climbed 200 meters"
+  },
+  "climbm_250": {
+   "seconds": 1.986208,
+   "text": "Climbed 250 meters"
+  },
+  "climbm_300": {
+   "seconds": 1.737,
+   "text": "Climbed 300 meters"
+  },
+  "climbm_350": {
+   "seconds": 2.04775,
+   "text": "Climbed 350 meters"
+  },
+  "climbm_400": {
+   "seconds": 1.747375,
+   "text": "Climbed 400 meters"
+  },
+  "climbm_450": {
+   "seconds": 2.013125,
+   "text": "Climbed 450 meters"
+  },
+  "climbm_50": {
+   "seconds": 1.489542,
+   "text": "Climbed 50 meters"
+  },
+  "climbm_500": {
+   "seconds": 1.77625,
+   "text": "Climbed 500 meters"
+  },
+  "climbm_550": {
+   "seconds": 1.990208,
+   "text": "Climbed 550 meters"
+  },
+  "climbm_600": {
+   "seconds": 1.78325,
+   "text": "Climbed 600 meters"
+  },
+  "climbm_650": {
+   "seconds": 2.0485,
+   "text": "Climbed 650 meters"
+  },
+  "climbm_700": {
+   "seconds": 1.863167,
+   "text": "Climbed 700 meters"
+  },
+  "climbm_750": {
+   "seconds": 2.223667,
+   "text": "Climbed 750 meters"
+  },
+  "climbm_800": {
+   "seconds": 1.815417,
+   "text": "Climbed 800 meters"
+  },
+  "climbm_850": {
+   "seconds": 2.120333,
+   "text": "Climbed 850 meters"
+  },
+  "climbm_900": {
+   "seconds": 1.77475,
+   "text": "Climbed 900 meters"
+  },
+  "climbm_950": {
+   "seconds": 2.086417,
+   "text": "Climbed 950 meters"
+  },
   "fixed_0": {
    "seconds": 1.4702916666666668,
    "text": "Monitoring heart rate"
@@ -20,9 +340,65 @@
    "seconds": 3.6112083333333334,
    "text": "Welcome to SteadyHeartBeat. Put in your AirPods Pro to begin."
   },
+  "fixed_13": {
+   "seconds": 1.106292,
+   "text": "ten seconds"
+  },
+  "fixed_14": {
+   "seconds": 0.58325,
+   "text": "three"
+  },
+  "fixed_15": {
+   "seconds": 0.50975,
+   "text": "two"
+  },
+  "fixed_16": {
+   "seconds": 0.591417,
+   "text": "one"
+  },
+  "fixed_17": {
+   "seconds": 0.63275,
+   "text": "Rest"
+  },
+  "fixed_18": {
+   "seconds": 1.567583,
+   "text": "Warm up. Keep moving"
+  },
+  "fixed_19": {
+   "seconds": 1.873125,
+   "text": "Cool down. Keep moving lightly"
+  },
   "fixed_2": {
    "seconds": 1.8015833333333333,
    "text": "Workout monitoring stopped"
+  },
+  "fixed_20": {
+   "seconds": 1.461125,
+   "text": "Rest. Keep moving"
+  },
+  "fixed_21": {
+   "seconds": 1.040125,
+   "text": "Warmed up"
+  },
+  "fixed_22": {
+   "seconds": 1.031708,
+   "text": "Let's begin"
+  },
+  "fixed_23": {
+   "seconds": 2.025292,
+   "text": "Starting. Recovery incomplete"
+  },
+  "fixed_24": {
+   "seconds": 0.789,
+   "text": "All done"
+  },
+  "fixed_25": {
+   "seconds": 1.533833,
+   "text": "Cool down complete"
+  },
+  "fixed_26": {
+   "seconds": 1.834333,
+   "text": "Heart rate reading unclear"
   },
   "fixed_3": {
    "seconds": 1.319625,
@@ -543,6 +919,146 @@
   "num_220": {
    "seconds": 1.5557916666666667,
    "text": "220"
+  },
+  "num_221": {
+   "seconds": 1.603333,
+   "text": "221"
+  },
+  "num_222": {
+   "seconds": 1.651958,
+   "text": "222"
+  },
+  "num_223": {
+   "seconds": 1.744583,
+   "text": "223"
+  },
+  "num_224": {
+   "seconds": 1.591042,
+   "text": "224"
+  },
+  "num_225": {
+   "seconds": 1.579792,
+   "text": "225"
+  },
+  "num_226": {
+   "seconds": 1.603625,
+   "text": "226"
+  },
+  "num_227": {
+   "seconds": 1.599833,
+   "text": "227"
+  },
+  "num_228": {
+   "seconds": 1.642917,
+   "text": "228"
+  },
+  "num_229": {
+   "seconds": 1.596833,
+   "text": "229"
+  },
+  "num_230": {
+   "seconds": 1.446458,
+   "text": "230"
+  },
+  "num_231": {
+   "seconds": 1.709375,
+   "text": "231"
+  },
+  "num_232": {
+   "seconds": 1.672958,
+   "text": "232"
+  },
+  "num_233": {
+   "seconds": 1.774417,
+   "text": "233"
+  },
+  "num_234": {
+   "seconds": 1.721083,
+   "text": "234"
+  },
+  "num_235": {
+   "seconds": 1.723917,
+   "text": "235"
+  },
+  "num_236": {
+   "seconds": 1.67,
+   "text": "236"
+  },
+  "num_237": {
+   "seconds": 1.767375,
+   "text": "237"
+  },
+  "num_238": {
+   "seconds": 1.621875,
+   "text": "238"
+  },
+  "num_239": {
+   "seconds": 1.661333,
+   "text": "239"
+  },
+  "num_240": {
+   "seconds": 1.452083,
+   "text": "240"
+  },
+  "num_241": {
+   "seconds": 1.657042,
+   "text": "241"
+  },
+  "num_242": {
+   "seconds": 1.697958,
+   "text": "242"
+  },
+  "num_243": {
+   "seconds": 1.699333,
+   "text": "243"
+  },
+  "num_244": {
+   "seconds": 1.627042,
+   "text": "244"
+  },
+  "num_245": {
+   "seconds": 1.6965,
+   "text": "245"
+  },
+  "num_246": {
+   "seconds": 1.676208,
+   "text": "246"
+  },
+  "num_247": {
+   "seconds": 1.742083,
+   "text": "247"
+  },
+  "num_248": {
+   "seconds": 1.628375,
+   "text": "248"
+  },
+  "num_249": {
+   "seconds": 1.582833,
+   "text": "249"
+  },
+  "num_25": {
+   "seconds": 0.895792,
+   "text": "25"
+  },
+  "num_250": {
+   "seconds": 1.477542,
+   "text": "250"
+  },
+  "num_26": {
+   "seconds": 0.947458,
+   "text": "26"
+  },
+  "num_27": {
+   "seconds": 0.979542,
+   "text": "27"
+  },
+  "num_28": {
+   "seconds": 0.774,
+   "text": "28"
+  },
+  "num_29": {
+   "seconds": 0.91575,
+   "text": "29"
   },
   "num_30": {
    "seconds": 0.5823333333333334,
@@ -1308,6 +1824,146 @@
    "seconds": 1.4770833333333333,
    "text": "220,"
   },
+  "numc_221": {
+   "seconds": 1.661625,
+   "text": "221,"
+  },
+  "numc_222": {
+   "seconds": 1.598458,
+   "text": "222,"
+  },
+  "numc_223": {
+   "seconds": 1.712417,
+   "text": "223,"
+  },
+  "numc_224": {
+   "seconds": 1.557042,
+   "text": "224,"
+  },
+  "numc_225": {
+   "seconds": 1.591125,
+   "text": "225,"
+  },
+  "numc_226": {
+   "seconds": 1.557667,
+   "text": "226,"
+  },
+  "numc_227": {
+   "seconds": 1.626333,
+   "text": "227,"
+  },
+  "numc_228": {
+   "seconds": 1.625625,
+   "text": "228,"
+  },
+  "numc_229": {
+   "seconds": 1.608542,
+   "text": "229,"
+  },
+  "numc_230": {
+   "seconds": 1.333125,
+   "text": "230,"
+  },
+  "numc_231": {
+   "seconds": 1.625708,
+   "text": "231,"
+  },
+  "numc_232": {
+   "seconds": 1.626667,
+   "text": "232,"
+  },
+  "numc_233": {
+   "seconds": 1.704542,
+   "text": "233,"
+  },
+  "numc_234": {
+   "seconds": 1.7565,
+   "text": "234,"
+  },
+  "numc_235": {
+   "seconds": 1.685417,
+   "text": "235,"
+  },
+  "numc_236": {
+   "seconds": 1.636375,
+   "text": "236,"
+  },
+  "numc_237": {
+   "seconds": 1.7155,
+   "text": "237,"
+  },
+  "numc_238": {
+   "seconds": 1.610333,
+   "text": "238,"
+  },
+  "numc_239": {
+   "seconds": 1.656083,
+   "text": "239,"
+  },
+  "numc_240": {
+   "seconds": 1.342083,
+   "text": "240,"
+  },
+  "numc_241": {
+   "seconds": 1.596083,
+   "text": "241,"
+  },
+  "numc_242": {
+   "seconds": 1.597125,
+   "text": "242,"
+  },
+  "numc_243": {
+   "seconds": 1.648417,
+   "text": "243,"
+  },
+  "numc_244": {
+   "seconds": 1.670875,
+   "text": "244,"
+  },
+  "numc_245": {
+   "seconds": 1.709292,
+   "text": "245,"
+  },
+  "numc_246": {
+   "seconds": 1.625333,
+   "text": "246,"
+  },
+  "numc_247": {
+   "seconds": 1.663292,
+   "text": "247,"
+  },
+  "numc_248": {
+   "seconds": 1.58525,
+   "text": "248,"
+  },
+  "numc_249": {
+   "seconds": 1.627875,
+   "text": "249,"
+  },
+  "numc_25": {
+   "seconds": 0.98775,
+   "text": "25,"
+  },
+  "numc_250": {
+   "seconds": 1.385458,
+   "text": "250,"
+  },
+  "numc_26": {
+   "seconds": 1.01875,
+   "text": "26,"
+  },
+  "numc_27": {
+   "seconds": 0.985375,
+   "text": "27,"
+  },
+  "numc_28": {
+   "seconds": 0.865542,
+   "text": "28,"
+  },
+  "numc_29": {
+   "seconds": 0.907875,
+   "text": "29,"
+  },
   "numc_30": {
    "seconds": 0.6366666666666667,
    "text": "30,"
@@ -1717,7 +2373,7 @@
    "text": "zone 5,"
   }
  },
- "count": 429,
+ "count": 593,
  "sampleRate": 24000,
  "voice": "af_nova"
 }
