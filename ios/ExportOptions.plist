@@ -19,5 +19,10 @@
 	<true/>
 	<key>destination</key>
 	<string>export</string>
+	<!-- Keep the build number pubspec.yaml set. Left to its default (true), the
+	     export asks App Store Connect and silently renumbers the IPA past the
+	     highest build there, so CFBundleVersion stops matching the in-app badge. -->
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
 </dict>
 </plist>
