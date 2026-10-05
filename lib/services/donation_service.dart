@@ -141,7 +141,7 @@ class DonationService {
       final json = const JsonEncoder.withIndent('  ').convert(bundle);
       final name =
           'SteadyHeartBeat-research-donation-${ExportService.fileStamp(null)}.json';
-      return ExportService.shareJsonFile(json, name,
+      return await ExportService.shareJsonFile(json, name,
           origin: origin, subject: 'SteadyHeartBeat anonymized research donation');
     } catch (e) {
       debugPrint('DonationService.shareDonation: $e');

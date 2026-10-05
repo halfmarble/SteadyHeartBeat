@@ -437,8 +437,6 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
             }
     }
 
-    // Option A: when the user hasn't picked a specific voice, choose the highest
-    // quality English voice available on the device.
     /// THE fallback voice, and the only one: Ava (Premium).
     ///
     /// The app speaks in Kokoro af_nova, pre-rendered. This synthesiser is
@@ -475,20 +473,73 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         _previewPlayer = nil
     }
 
+    /// Speak a cue on this channel: its clips if they play, else the fallback
+    /// synthesiser. Every way of reaching the synth leaves one MISS line —
+    /// KokoroClips.fileURLs logs an unparsed or unshipped cue, _playClips a clip
+    /// that will not open or a first clip that will not start, and a corpus
+    /// that failed to load is logged here, since neither of those runs without
+    /// it. Never the text.
+    private func _speakPreview(_ text: String, clips urls: [URL]?) {
+        if let urls, _playClips(urls) { return }
+        if AnnounceEngine.clips == nil {
+            NSLog("[kokoroclips] MISS file [clips=0] — speaking in system voice")
+        }
+        let utt = AVSpeechUtterance(string: text)
+        utt.voice = _resolveFallbackVoice()
+        utt.rate = 0.48
+        utt.volume = 1.0
+        _previewSynth.speak(utt)
+    }
+
     /// A cue can be more than one clip ("142, zone 4" is two), so chain them on
-    /// duration rather than firing them all at once.
-    private func _playClips(_ urls: [URL]) {
-        guard let first = urls.first, let player = try? AVAudioPlayer(contentsOf: first) else { return }
+    /// duration rather than firing them all at once. Every player is opened
+    /// before any plays: if one will not open, nothing plays and this returns
+    /// false, so the whole cue goes to the synth rather than half of it. The
+    /// same if the first clip will not start: play() returning false is
+    /// silence, and the AirPods prompt needs sound to pull the route over.
+    private func _playClips(_ urls: [URL]) -> Bool {
+        var players: [AVAudioPlayer] = []
+        for url in urls {
+            do {
+                players.append(try AVAudioPlayer(contentsOf: url))
+            } catch {
+                NSLog("[kokoroclips] MISS file [player=0 err=%ld] — speaking in system voice",
+                      (error as NSError).code)
+                return false
+            }
+        }
+        guard !players.isEmpty else {
+            NSLog("[kokoroclips] MISS file [urls=0] — speaking in system voice")
+            return false
+        }
+        guard _playChain(players) else {
+            NSLog("[kokoroclips] MISS file [play=0] — speaking in system voice")
+            return false
+        }
+        return true
+    }
+
+    /// Starts the first player and schedules the rest; false if the first will
+    /// not start. A later clip that will not start ends the cue there: part of
+    /// it has been heard, and the synth would say it again from the top.
+    private func _playChain(_ players: [AVAudioPlayer]) -> Bool {
+        guard let player = players.first else { return false }
         _previewPlayer = player
         player.volume = 1.0
         player.prepareToPlay()
-        player.play()
-        let rest = Array(urls.dropFirst())
-        guard !rest.isEmpty else { return }
+        guard player.play() else {
+            _previewPlayer = nil
+            return false
+        }
+        let rest = Array(players.dropFirst())
+        guard !rest.isEmpty else { return true }
         DispatchQueue.main.asyncAfter(deadline: .now() + player.duration) { [weak self] in
             guard let self, self._previewPlayer === player else { return }
-            self._playClips(rest)
+            if !self._playChain(rest) {
+                NSLog("[kokoroclips] play=0 mid-cue — %ld clip(s) not played", rest.count)
+            }
         }
+        return true
     }
 
     /// The pre-workout greeting. Clips first — it is in the corpus, so this is
@@ -499,15 +550,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback, mode: .voicePrompt, options: [.mixWithOthers, .duckOthers])
         try? session.setActive(true, options: [])
-        if let urls = AnnounceEngine.clips?.fileURLs(for: text), !urls.isEmpty {
-            _playClips(urls)
-            return
-        }
-        let utt = AVSpeechUtterance(string: text)
-        utt.voice = _resolveFallbackVoice()
-        utt.rate = 0.48
-        utt.volume = 1.0
-        _previewSynth.speak(utt)
+        _speakPreview(text, clips: AnnounceEngine.clips?.fileURLs(for: text))
     }
 
     private func _resolveFallbackVoice() -> AVSpeechSynthesisVoice? {
@@ -1253,19 +1296,7 @@ class WorkoutManager: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDe
         // clip for it. Play the clip when we have it; the synth stays as the
         // fallback, and still produces the sound the route needs either way.
         let connecting = "Connecting to your AirPods. Please stand by."
-        if let url = AnnounceEngine.clips?.fileURLs(for: connecting)?.first,
-           let player = try? AVAudioPlayer(contentsOf: url) {
-            _previewPlayer = player
-            player.volume = 1.0
-            player.prepareToPlay()
-            player.play()
-        } else {
-            let utt = AVSpeechUtterance(string: connecting)
-            utt.voice = _resolveFallbackVoice()
-            utt.rate = 0.48
-            utt.volume = 1.0
-            _previewSynth.speak(utt)
-        }
+        _speakPreview(connecting, clips: AnnounceEngine.clips?.fileURLs(for: connecting))
 
         // Poll up to ~6s for the route to switch here. Freshly-inserted buds can
         // take a couple seconds to complete the Bluetooth audio handshake once

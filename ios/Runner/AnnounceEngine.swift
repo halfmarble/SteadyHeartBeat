@@ -22,10 +22,9 @@ final class AnnounceEngine {
 
     // ── Hooks (set by WorkoutManager) ────────────────────────────────────────
 
-    /// Pulls the owner's chosen announce voice at render time — a pull hook
-    /// like the other seams, so there is no second copy of the voice to keep
-    /// in sync (a forgotten mirror would silently render cues in the default
-    /// en-US voice while the picker reports the user's choice).
+    /// Pulls the fallback voice (Ava, from the owner's _resolveFallbackVoice)
+    /// at render time — a pull hook like the other seams, so the engine keeps
+    /// no copy of it. Used only for a cue with no clip; nil means en-US.
     var voiceProvider: () -> AVSpeechSynthesisVoice? = { nil }
 
     /// Enriches a bare BPM number with zone coaching ("142, zone 4" + an
@@ -284,7 +283,7 @@ final class AnnounceEngine {
         }
     }
 
-    // Build a standard cue utterance in the owner's chosen voice.
+    // Build a standard cue utterance in the fallback voice (see voiceProvider).
     private func _makeUtterance(_ text: String, rate: Float, pitch: Float) -> AVSpeechUtterance {
         let u = AVSpeechUtterance(string: text)
         u.voice = voiceProvider() ?? AVSpeechSynthesisVoice(language: "en-US")

@@ -698,6 +698,7 @@ final class CorpusCoverageTests: XCTestCase {
     /// one the scan reads or one listed here, with the reason it is covered.
     func testEverySpeechCallSiteIsVisibleToTheScan() throws {
         var blind: [String] = []
+        var previewCalls = 0
 
         // Native. Non-literal arguments that are covered elsewhere:
         //   cue / $0 / enterPhase(…)  gate-engine cues, scanned at their `return`
@@ -722,12 +723,37 @@ final class CorpusCoverageTests: XCTestCase {
                     blind.append("\(rel):\(n + 1): \(trimmed)")
                 }
             }
-            // Clip lookups outside the announce path play a named phrase directly.
+            // The prompt channel speaks its text in the fallback voice when its clips
+            // do not play, and `_speakPreview(` contains no `speak(`, so the literal
+            // scan never reads it. Its clips must be looked up on the same line, for
+            // the same argument it speaks, so the clip-lookup check below reads them.
             for (n, line) in code.components(separatedBy: "\n").enumerated() {
-                guard let r = line.range(of: #"(fileURLs|buffers)\(for: [A-Za-z_.]+\)"#, options: .regularExpression),
-                      !line.contains("func ") else { continue }
+                guard line.contains("_speakPreview("), !line.contains("func _speakPreview"),
+                      !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") else { continue }
+                let calls = line.components(separatedBy: "_speakPreview(").count - 1
+                previewCalls += calls
+                let ownLookup = #"_speakPreview\(([A-Za-z_]+), clips: AnnounceEngine\.clips\?\.fileURLs\(for: \1\)\)"#
+                if calls != 1 {
+                    blind.append("\(rel):\(n + 1): \(calls) _speakPreview calls on one line")
+                } else if line.range(of: ownLookup, options: .regularExpression) == nil {
+                    blind.append("\(rel):\(n + 1): _speakPreview without a fileURLs(for:) lookup of its own text")
+                }
+            }
+            // Clip lookups outside the announce path play a named phrase directly.
+            // A one-line `func` is read too: its lookup counts against its own name.
+            var enclosing = ""
+            for (n, line) in code.components(separatedBy: "\n").enumerated() {
+                if !line.trimmingCharacters(in: .whitespaces).hasPrefix("//"),
+                   let f = line.range(of: #"func [A-Za-z_]+"#, options: .regularExpression) {
+                    enclosing = String(line[f].dropFirst(5))
+                }
+                guard let r = line.range(of: #"(fileURLs|buffers)\(for: [A-Za-z_.]+\)"#, options: .regularExpression)
+                else { continue }
                 let arg = String(line[r]).components(separatedBy: "for: ")[1].dropLast()
-                if arg == "text" || arg == "utt.speechString" { continue }   // passthroughs
+                // Passthroughs: the greeting's text is Dart's, read at speakGreeting
+                // in workout_provider.dart; utt.speechString is every engine cue,
+                // read at its speak( call. A `text` anywhere else is unread.
+                if (arg == "text" && enclosing == "speakGreeting") || arg == "utt.speechString" { continue }
                 guard let def = code.range(of: "let \(arg) = \"([^\"]*)\"", options: .regularExpression) else {
                     blind.append("\(rel):\(n + 1): clip lookup of \(arg), not a literal"); continue
                 }
@@ -740,6 +766,8 @@ final class CorpusCoverageTests: XCTestCase {
                 }
             }
         }
+        XCTAssertGreaterThanOrEqual(previewCalls, 2,
+            "found \(previewCalls) _speakPreview calls, not the greeting and the AirPods prompt — the rule is checking nothing")
 
         // Dart: only workout_provider.dart speaks, and every call carries a literal.
         let lib = Self.repoRoot.appendingPathComponent("lib")

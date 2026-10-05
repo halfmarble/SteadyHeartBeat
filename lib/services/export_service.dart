@@ -62,7 +62,7 @@ class ExportService {
       final json = await _bundleJson(now);
       final stamp = fileStamp(now);
       final name = 'SteadyHeartBeat-data-$stamp.json';
-      return shareJsonFile(json, name, origin: origin);
+      return await shareJsonFile(json, name, origin: origin);
     } catch (e) {
       debugPrint('ExportService.exportToShareSheet [$step]: $e');
       return '[$step] $e';
