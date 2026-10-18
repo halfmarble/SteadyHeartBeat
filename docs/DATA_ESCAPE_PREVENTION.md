@@ -211,8 +211,7 @@ assertion to make a build pass.
 - That `kDebugMode`-gated logging is genuinely absent from the release binary.
 
 Run before pushing: `flutter test` (unit guards) and, for HealthKit-touching
-changes, a manual run on a **physical iPhone** (the Simulator has no HealthKit, per
-[CLAUDE.md](CLAUDE.md)).
+changes, a manual run on a **physical iPhone** (the Simulator has no HealthKit).
 
 ---
 
@@ -230,7 +229,7 @@ apply:
 - [ ] No new iCloud/CloudKit/App Group/Spotlight/Siri/Handoff surface.
 - [ ] No health value logged outside a `kDebugMode` guard.
 - [ ] No clipboard or share-sheet use with health data (unless it's a deliberate,
-      documented, user-initiated export — see DATA_PORTABILITY.md).
+      documented, user-initiated export — see DATA_PRIVACY.md, section 9).
 - [ ] `test/data_privacy_test.dart` and `test/storage_backup_test.dart` still pass,
       and any new invariant has its own assertion.
 - [ ] If user-facing data handling changed, **DATA_PRIVACY.md was updated in the same
