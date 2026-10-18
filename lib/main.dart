@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/workout_provider.dart';
 import 'app.dart';
+import 'licenses.dart';
 
 void main() {
   // Backstop for anything an individual call site doesn't catch — e.g. a
@@ -13,6 +14,7 @@ void main() {
   // lives at the call sites (see WorkoutProvider.start).
   runZonedGuarded(() {
     WidgetsFlutterBinding.ensureInitialized();
+    registerAppLicenses();
 
     // Framework (build/layout/paint) errors → console + zone handler.
     FlutterError.onError = (FlutterErrorDetails details) {

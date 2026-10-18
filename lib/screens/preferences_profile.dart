@@ -545,6 +545,7 @@ class _AboutSection extends StatelessWidget {
     // same source as the home header badge — so they can't disagree). "+" marks
     // a build with the paid module compiled in, shown in both places or neither.
     final plus = context.read<WorkoutProvider>().plus.available;
+    final version = '1.0.0 ($kBuildNumber${plus ? '+' : ''})';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -555,8 +556,36 @@ class _AboutSection extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'SteadyHeartBeat 1.0.0 ($kBuildNumber${plus ? '+' : ''})',
+          'SteadyHeartBeat $version',
           style: const TextStyle(color: kTextFaint, fontSize: kFontBase),
+        ),
+        // Package and engine notices (collected by Flutter), plus the two that
+        // lib/licenses.dart adds. The padding gives the caption a full-size
+        // tap target.
+        Semantics(
+          button: true,
+          label: 'Open-source licenses',
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => showLicensePage(
+              context: context,
+              applicationName: 'SteadyHeartBeat',
+              applicationVersion: version,
+            ),
+            child: const ExcludeSemantics(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Text(
+                  'Open-source licenses',
+                  style: TextStyle(
+                    color: kTextLabel,
+                    fontSize: kFontCaption,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ],
     );
