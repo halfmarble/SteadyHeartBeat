@@ -14,7 +14,7 @@
 > [dpubs_series/10439](https://www.tdcommons.org/dpubs_series/10439), which is examiner-searched.
 >
 > The deposited article body is the one posted at that link; this file is the
-> master, and carries additionally the *Where this was published* record below and a note on the
+> master, and carries additionally the *Where this is published* record below and a note on the
 > lighter search behind §C.
 
 ---
