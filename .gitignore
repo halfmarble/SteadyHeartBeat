@@ -58,8 +58,15 @@ GEMINI.md
 # App Store screenshots — captured locally, uploaded to App Store Connect by hand.
 /app_store/
 
-# Local working docs — kept out of the public repo.
-/docs/
+# Local working docs — kept out of the public repo, except the published documents
+# below.
+/docs/*
+!/docs/BUGS.md
+!/docs/DATA_PRIVACY.md
+!/docs/DATA_ESCAPE_PREVENTION.md
+!/docs/PRIOR_ART_EARBUD_CLOSED_LOOP.md
+!/docs/PRIOR_ART_REST_GATING.md
+!/docs/PRIOR_ART_WARMUP_READINESS.md
 
 # Only the pre-rendered clips belong in KokoroAssets/. MUST mirror the same rules
 # in -closed/.gitignore: older checkouts still hold a quarter-gigabyte of model

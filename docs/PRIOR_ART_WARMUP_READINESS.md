@@ -1,7 +1,7 @@
 # Defensive Publication — Prior Art Disclosure
 
 **Title:** Crediting recorded prior activity toward an exercise warm-up, with heart-rate-gated warm-up termination and audio status through a consumer earbud
-**Author / discloser:** Halfmarble LLC (gerard ziemski, Cofounder | Bioenergetics OS Architect)
+**Author / discloser:** Halfmarble LLC (Gerard Ziemski, Cofounder | Bioenergetics OS Architect)
 **Effective publication date:** 2026-06-15 — the date Technical Disclosure Commons posted this disclosure, and its governing prior-art date.
 **Status:** Defensive publication — **PUBLISHED**. The method described herein is dedicated to the public domain (see *Dedication*, below).
 **TDCommons:** Defensive Publications Series — <https://www.tdcommons.org/dpubs_series/10439> (posted 2026-06-15).

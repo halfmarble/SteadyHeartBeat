@@ -6,8 +6,8 @@ import '../providers/workout_provider.dart' show WorkoutType;
 /// Boxing always renders as a mirrored **pair** of gloves (left + a horizontally
 /// flipped right); every other type is its single Material icon. Route every
 /// workout-type icon through this widget so boxing can't drift back to a lone
-/// glove on some surfaces (see BUGS.md #2 — this consolidates three inline pair
-/// implementations and the bare-`sports_mma` fallbacks).
+/// glove on some surfaces (see docs/BUGS.md #2 — this consolidates three
+/// inline pair implementations and the bare-`sports_mma` fallbacks).
 class WorkoutTypeIcon extends StatelessWidget {
   const WorkoutTypeIcon({
     super.key,

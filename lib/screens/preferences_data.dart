@@ -5,8 +5,8 @@ part of 'preferences_screen.dart';
 /// `part` of preferences_screen.dart (see preferences_sections.dart for why).
 /// This is the export / erase / donate surface: the one place the app
 /// deliberately moves data out of its protected storage, and only on an
-/// explicit tap. See DATA_PORTABILITY.md and DATA_PRIVACY.md before changing
-/// anything here.
+/// explicit tap. See DATA_PORTABILITY.md and docs/DATA_PRIVACY.md before
+/// changing anything here.
 
 /// Lets the owner exercise their data rights: export a complete, plaintext copy
 /// off-device via the system share sheet, or erase everything stored on the

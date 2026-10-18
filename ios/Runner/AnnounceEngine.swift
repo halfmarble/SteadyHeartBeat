@@ -317,7 +317,7 @@ final class AnnounceEngine {
     // health record, and writing it to the container would create a new
     // at-rest health-data surface for a saving measured in milliseconds. The
     // corpus on disk is safe precisely because it is every POSSIBLE number,
-    // revealing nothing about which ones were spoken. See DATA_PRIVACY.md.
+    // revealing nothing about which ones were spoken. See docs/DATA_PRIVACY.md.
     //
     // Cleared on stop() with the rest of the engine's state, so a cache never
     // outlives the workout that filled it.

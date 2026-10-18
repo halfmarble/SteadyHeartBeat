@@ -3,8 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:steady_heart_beat/widgets/workout_type_icon.dart';
 import 'package:steady_heart_beat/providers/workout_provider.dart';
 
-// Guards BUGS.md #2: boxing must ALWAYS render as a mirrored pair of gloves, and
-// every other type as exactly one icon. Routing every surface through
+// Guards docs/BUGS.md #2: boxing must ALWAYS render as a mirrored pair of
+// gloves, and every other type as exactly one icon. Routing every surface through
 // WorkoutTypeIcon is what keeps this from drifting per-screen.
 
 Finder _gloves() => find.byWidgetPredicate(

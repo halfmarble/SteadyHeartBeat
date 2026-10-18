@@ -108,9 +108,9 @@ These are deliberately **independent** decisions. A change to one does not affec
 
    | Disclosure | TDCommons |
    |---|---|
-   | Consumer earbud as a closed-loop biometric sensor and ambient feedback device — [PRIOR_ART_EARBUD_CLOSED_LOOP.md](PRIOR_ART_EARBUD_CLOSED_LOOP.md) | [10440](https://www.tdcommons.org/dpubs_series/10440) |
-   | Heart-rate-recovery-gated rest-interval timing — [PRIOR_ART_REST_GATING.md](PRIOR_ART_REST_GATING.md) | [10441](https://www.tdcommons.org/dpubs_series/10441) |
-   | Crediting recorded prior activity toward an exercise warm-up — [PRIOR_ART_WARMUP_READINESS.md](PRIOR_ART_WARMUP_READINESS.md) | [10439](https://www.tdcommons.org/dpubs_series/10439) |
+   | Consumer earbud as a closed-loop biometric sensor and ambient feedback device — [PRIOR_ART_EARBUD_CLOSED_LOOP.md](docs/PRIOR_ART_EARBUD_CLOSED_LOOP.md) | [10440](https://www.tdcommons.org/dpubs_series/10440) |
+   | Heart-rate-recovery-gated rest-interval timing — [PRIOR_ART_REST_GATING.md](docs/PRIOR_ART_REST_GATING.md) | [10441](https://www.tdcommons.org/dpubs_series/10441) |
+   | Crediting recorded prior activity toward an exercise warm-up — [PRIOR_ART_WARMUP_READINESS.md](docs/PRIOR_ART_WARMUP_READINESS.md) | [10439](https://www.tdcommons.org/dpubs_series/10439) |
    | Synchronized multi-line digital signal generation (USB D−/D+) | [10442](https://www.tdcommons.org/dpubs_series/10442) |
    | Robust overnight HRV estimation independent of sleep/wake staging | [10443](https://www.tdcommons.org/dpubs_series/10443) |
    | Nap-level HRV and nap-day recovery comparison | [10454](https://www.tdcommons.org/dpubs_series/10454) |
@@ -161,7 +161,7 @@ The one exception is **Apple Health**: by default each finished workout is saved
 
 **Your data is yours — locked in is not the goal.** Protecting data this aggressively has a failure mode: it can lock out the owner too. So **Preferences → Your Data** gives you two unconditional actions: **Export My Data** — a complete, readable copy of everything the app stores (sessions and health profile), handed over through the system share sheet to a destination you choose — and **Delete All Data**, which erases it from the device. The export sheet also offers **Anonymize for Research…**, which produces a de-identified copy (random IDs, identity and absolute timestamps stripped) if you choose to donate it. Nothing uploads anywhere; both paths end at the share sheet. A readable export is deliberate: an encrypted one would protect the data from its owner as much as from anyone else, which is the opposite of stewardship.
 
-For a complete breakdown of every way data could leave the device and how each is handled — verifiable against the code — see **[DATA_PRIVACY.md](DATA_PRIVACY.md)**. The full privacy policy is at [halfmarble.com/steadyheartbeat/privacy.html](https://halfmarble.com/steadyheartbeat/privacy.html).
+For a complete breakdown of every way data could leave the device and how each is handled — verifiable against the code — see **[DATA_PRIVACY.md](docs/DATA_PRIVACY.md)**. The full privacy policy is at [halfmarble.com/steadyheartbeat/privacy.html](https://halfmarble.com/steadyheartbeat/privacy.html).
 
 ---
 
