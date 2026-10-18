@@ -13,7 +13,7 @@
 > Technical Disclosure Commons Defensive Publications Series at
 > [dpubs_series/10439](https://www.tdcommons.org/dpubs_series/10439), which is examiner-searched.
 >
-> The deposited article body is `PRIOR_ART_WARMUP_READINESS_tdcommons.md`; this file is the
+> The deposited article body is the one posted at that link; this file is the
 > master, and carries additionally the *Where this was published* record below and a note on the
 > lighter search behind §C.
 
@@ -110,7 +110,7 @@ be deposited properly.
 - **Primary — Technical Disclosure Commons**, Defensive Publications Series:
   [dpubs_series/10439](https://www.tdcommons.org/dpubs_series/10439), posted **2026-06-15**. This
   is the deposit that gives the disclosure teeth, and its date is the governing prior-art date.
-  Deposited article body: `PRIOR_ART_WARMUP_READINESS_tdcommons.md`.
+  Deposited article body: the one posted at that link.
 - **Secondary —** listed in the public repository's `README.md` prior-art section alongside the
   applicant's other disclosures, as a public, timestamped pointer; the signed Git history provides
   an independent dated record.
